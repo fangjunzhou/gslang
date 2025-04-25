@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "3D Gaussian Splatting with BVH optimization in Slang"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "slangpy>=0.23.0",
+]
 
 [build-system]
 requires = ["hatchling"]
