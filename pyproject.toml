@@ -11,3 +11,8 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "jupyterlab>=4.4.1",
+]
