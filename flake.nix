@@ -5,9 +5,10 @@
     {
       nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
       flake-utils.url = "github:numtide/flake-utils";
+      nixgl.url = "github:nix-community/nixGL";
     };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, nixgl }:
     with flake-utils.lib;
     eachSystem [
       system.x86_64-linux
@@ -17,8 +18,19 @@
       (system:
         let
           inherit (nixpkgs) lib;
-          pkgs = import nixpkgs { inherit system; };
-          pythonLdPath = lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
+          pkgs = import nixpkgs {
+            inherit system;
+            overlay = [ nixgl.overlay ];
+          };
+          ldPath = lib.makeLibraryPath (
+            pkgs.pythonManylinuxPackages.manylinux1 ++
+            (
+              lib.optionalAttrs pkgs.stdenv.isLinux [
+                "/run/opengl-driver"
+                pkgs.vulkan-loader
+              ]
+            )
+          );
         in
         {
           devShells.default = pkgs.mkShell
@@ -27,6 +39,7 @@
                 # Python environment.
                 python3
                 uv
+                xorg.libX11
               ];
               shellHook = ''
                 # Create the virtual environment if it doesn't exist
@@ -35,7 +48,7 @@
                   source .venv/bin/activate
                   # Add .venv/bin to PATH
                   export PATH=$PWD/.venv/bin:$PATH
-                  export LD_LIBRARY_PATH=${pythonLdPath}:$LD_LIBRARY_PATH
+                  export LD_LIBRARY_PATH=${ldPath}:$LD_LIBRARY_PATH
                 else
                   echo "Environment not initialized."
                 fi

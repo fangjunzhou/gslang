@@ -151,7 +151,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "slangpy", specifier = ">=0.23.0" }]
+requires-dist = [{ name = "slangpy", git = "https://github.com/fangjunzhou/slangpy?rev=94c8d1bf760d05c621ef7bc4e27432131e21cec1" }]
 
 [package.metadata.requires-dev]
 dev = [{ name = "jupyterlab", specifier = ">=4.4.1" }]
@@ -1219,15 +1219,11 @@ wheels = [
 [[package]]
 name = "slangpy"
 version = "0.23.0"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/fangjunzhou/slangpy?rev=94c8d1bf760d05c621ef7bc4e27432131e21cec1#94c8d1bf760d05c621ef7bc4e27432131e21cec1" }
 dependencies = [
     { name = "numpy" },
     { name = "nv-sgl" },
     { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/09/90/7de790bf98c352209d7efb60c14dc1cca372ff200415e9eb0bc46c43dfcb/slangpy-0.23.0.tar.gz", hash = "sha256:a9320f7f83db09a1449a08c0b87a922083d162e3de7e97025bcf9457e1cd5abd", size = 2201956, upload_time = "2025-04-16T13:08:16.563Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d9/c2/178f0ec8abf426b15f1c0d6c47688a23b3e686c95c6631496e280cc3621d/slangpy-0.23.0-py3-none-any.whl", hash = "sha256:dfb7a475b857f8599de6401bbc8704c199f6a13bfc4e38e1e115ab392bb08923", size = 191719, upload_time = "2025-04-16T13:08:13.809Z" },
 ]
 
 [[package]]
