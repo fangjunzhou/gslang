@@ -5,10 +5,9 @@
     {
       nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
       flake-utils.url = "github:numtide/flake-utils";
-      nixgl.url = "github:nix-community/nixGL";
     };
 
-  outputs = { self, nixpkgs, flake-utils, nixgl }:
+  outputs = { self, nixpkgs, flake-utils }:
     with flake-utils.lib;
     eachSystem [
       system.x86_64-linux
@@ -20,16 +19,16 @@
           inherit (nixpkgs) lib;
           pkgs = import nixpkgs {
             inherit system;
-            overlay = [ nixgl.overlay ];
           };
-          ldPath = lib.makeLibraryPath (
-            pkgs.pythonManylinuxPackages.manylinux1 ++
-            (
-              lib.optionalAttrs pkgs.stdenv.isLinux [
-                "/run/opengl-driver"
-                pkgs.vulkan-loader
-              ]
-            )
+          ldPath = lib.optionalString pkgs.stdenv.isLinux (
+            lib.makeLibraryPath
+              (
+                pkgs.pythonManylinuxPackages.manylinux1 ++
+                [
+                  "/run/opengl-driver"
+                  pkgs.vulkan-loader
+                ]
+              )
           );
         in
         {
@@ -39,8 +38,9 @@
                 # Python environment.
                 python3
                 uv
+              ] ++ (lib.optional pkgs.stdenv.isLinux [
                 xorg.libX11
-              ];
+              ]);
               shellHook = ''
                 # Create the virtual environment if it doesn't exist
                 if [ -d .venv ]; then
