@@ -18,6 +18,3 @@ build-backend = "hatchling.build"
 dev = [
     "jupyterlab>=4.4.1",
 ]
-
-[tool.uv.sources]
-slangpy = { git = "https://github.com/fangjunzhou/slangpy", rev = "94c8d1bf760d05c621ef7bc4e27432131e21cec1" }
