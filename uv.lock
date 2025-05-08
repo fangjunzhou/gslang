@@ -156,7 +156,7 @@ dev = [
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.1" },
     { name = "numpy", specifier = ">=2.2.5" },
-    { name = "slangpy", editable = "external/slangpy" },
+    { name = "slangpy", directory = "external/slangpy" },
 ]
 
 [package.metadata.requires-dev]
@@ -1426,7 +1426,7 @@ wheels = [
 
 [[package]]
 name = "slangpy"
-source = { editable = "external/slangpy" }
+source = { directory = "external/slangpy" }
 dependencies = [
     { name = "numpy" },
     { name = "typing-extensions" },

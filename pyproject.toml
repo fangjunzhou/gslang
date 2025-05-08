@@ -20,4 +20,4 @@ dev = [
 ]
 
 [tool.uv.sources]
-slangpy = { path = "external/slangpy", editable = true }
+slangpy = { path = "external/slangpy" }
