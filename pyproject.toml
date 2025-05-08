@@ -16,8 +16,25 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "black>=25.1.0",
     "jupyterlab>=4.4.1",
+    "pyright>=1.1.400",
+    "pytest>=8.3.5",
 ]
 
 [tool.uv.sources]
 slangpy = { path = "external/slangpy" }
+
+[tool.black]
+line-length = 80
+
+[tool.pyright]
+include = ["./src"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+reportUnusedImport = "warning"
+reportMissingSuperCall = "warning"
+reportInvalidStringEscapeSequence = "error"
+reportMissingParameterType = "error"
+reportMissingTypeArgument = "warning"
+reportInvalidTypeForm = "warning"
