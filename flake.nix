@@ -27,11 +27,6 @@
             # Build system.
             cmake
             ninja
-            # Slangpy dependencies.
-            libjpeg
-            libpng
-            openexr_3
-            asmjit
           ];
           linuxPkgs = with pkgs; [
             xorg.libX11
