@@ -4,10 +4,15 @@
   inputs =
     {
       nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+      nixpkgs-cuda.url = "github:nixos/nixpkgs/nixos-24.11";
       flake-utils.url = "github:numtide/flake-utils";
+      slangpy-src = {
+        url = "git+file:./external/slangpy?submodules=1";
+        flake = false;
+      };
     };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgs-cuda, flake-utils, ... } @ inputs:
     with flake-utils.lib;
     eachSystem [
       system.x86_64-linux
@@ -20,22 +25,29 @@
           pkgs = import nixpkgs {
             inherit system;
           };
+          pkgs-cuda = import nixpkgs-cuda
+            {
+              inherit system;
+              config.allowUnfree = true;
+            };
+          slangpy-config = import "${inputs.slangpy-src}/config.nix" {
+            inherit pkgs pkgs-cuda lib;
+          };
+          slangpy-basePkgs = slangpy-config.basePkgs;
+          slangpy-linuxPkgs = slangpy-config.linuxPkgs;
+          slangpy-ldLibs = slangpy-config.ldLibs;
           basePkgs = with pkgs; [
             # Python environment.
             python3
             uv
-            # Build system.
-            cmake
-            ninja
-          ];
-          linuxPkgs = with pkgs; [
-            xorg.libX11
           ];
         in
         {
           devShells.default = pkgs.mkShell
             {
-              buildInputs = basePkgs ++ (lib.optional pkgs.stdenv.isLinux linuxPkgs);
+              buildInputs = basePkgs ++
+                slangpy-basePkgs ++
+                (lib.optional pkgs.stdenv.isLinux slangpy-linuxPkgs);
               shellHook = ''
                 # Create the virtual environment if it doesn't exist
                 if [ -d .venv ]; then
@@ -48,16 +60,8 @@
                 fi
               '';
 
-              LD_LIBRARY_PATH = lib.optionalString pkgs.stdenv.isLinux (
-                lib.makeLibraryPath
-                  (
-                    pkgs.pythonManylinuxPackages.manylinux1 ++
-                    [
-                      "/run/opengl-driver"
-                      pkgs.vulkan-loader
-                    ]
-                  )
-              );
+              LD_LIBRARY_PATH = lib.makeLibraryPath slangpy-ldLibs;
+              CUDA_PATH = lib.optionalString pkgs.stdenv.isLinux pkgs-cuda.cudatoolkit;
             };
         }
       );
