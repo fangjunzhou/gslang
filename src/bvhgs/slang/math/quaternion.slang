@@ -23,9 +23,8 @@ float4 conj(float4 q) { return float4(-q.xyz, q.w); }
 
 // Quaternion inverse.
 // @param q Quaternion.
-// @return The inverse of the quaternion. This function works for both
-// normalized and non-normalized quaternions by using the squared norm for
-// robustness.
+// @return The inverse of the quaternion. This function works for both normalized
+// and non-normalized quaternions by using the squared norm for robustness.
 public
 float4 inv(float4 q) { return conj(q) / dot(q, q); }
 
@@ -72,17 +71,11 @@ float3 rotate(float4 q, float3 v) {
 // @return The rotation matrix representation of the quaternion.
 public
 float3x3 asRotMat(float4 q) {
-  float3x3 m;
-  m[0][0] = 1 - 2 * (q.y * q.y + q.z * q.z);
-  m[0][1] = 2 * (q.x * q.y - q.z * q.w);
-  m[0][2] = 2 * (q.x * q.z + q.y * q.w);
-  m[1][0] = 2 * (q.x * q.y + q.z * q.w);
-  m[1][1] = 1 - 2 * (q.x * q.x + q.z * q.z);
-  m[1][2] = 2 * (q.y * q.z - q.x * q.w);
-  m[2][0] = 2 * (q.x * q.z - q.y * q.w);
-  m[2][1] = 2 * (q.y * q.z + q.x * q.w);
-  m[2][2] = 1 - 2 * (q.x * q.x + q.y * q.y);
-  return m;
+  // TODO: Check correctness and efficiency.
+  float3 rx = rotate(q, float3(1, 0, 0));
+  float3 ry = rotate(q, float3(0, 1, 0));
+  float3 rz = rotate(q, float3(0, 0, 1));
+  return transpose(float3x3(rx, ry, rz));
 }
 
 }  // namespace quat
