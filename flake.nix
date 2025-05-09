@@ -59,8 +59,13 @@
                   echo "Environment not initialized."
                 fi
               '';
-
-              LD_LIBRARY_PATH = lib.makeLibraryPath slangpy-ldLibs;
+              LD_LIBRARY_PATH = lib.makeLibraryPath (
+                slangpy-basePkgs ++
+                slangpy-linuxPkgs ++
+                slangpy-ldLibs ++ [
+                  pkgs.imath
+                ]
+              );
               CUDA_PATH = lib.optionalString pkgs.stdenv.isLinux pkgs-cuda.cudatoolkit;
             };
         }
