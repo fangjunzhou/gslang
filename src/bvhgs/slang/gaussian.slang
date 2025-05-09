@@ -1,3 +1,6 @@
+module gaussian;
+
+public
 struct Gaussian3D {
   float3 position;
   float4 rotation;
@@ -8,6 +11,7 @@ struct Gaussian3D {
 
   // TODO: Spherical harmonics.
 
+ public
   __init(float3 position = float3(0, 0, 0),
          float4 rotation = float4(0, 0, 0, 1), float3 scale = float3(1, 1, 1),
          float3 color = float3(1, 0, 1), float opacity = 1) {
@@ -19,10 +23,13 @@ struct Gaussian3D {
     this.opacity = opacity;
   }
 
+ public
   float3x3 covariance() {
     // TODO: Implement covariance matrix.
   }
 };
 
-// TODO: Implement Gaussian2D.
-struct Gaussian2D {};
+public
+struct Gaussian2D {
+  // TODO: Implement Gaussian2D.
+};
