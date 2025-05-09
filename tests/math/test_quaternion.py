@@ -2,6 +2,7 @@ import slangpy as spy
 import numpy as np
 from typing import Tuple
 import pytest
+import pytest_benchmark
 import quaternion
 import logging
 
@@ -207,3 +208,32 @@ def test_quaternion_as_rotation_matrix(buffer_size: int):
     assert np.allclose(
         rot_matrix_spy, rot_matrix_ref, atol=1e-6
     ), "Quaternion to rotation matrix conversion failed."
+
+
+@pytest.fixture(params=[128, 256, 512, 1024, 2048])
+def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
+    """Fixture to provide a buffer size for benchmarking.
+
+    :param request: The pytest request object.
+    :return: The buffer size.
+    """
+    return request.param
+
+
+def test_quaternion_as_rotation_matrix_benchmark(
+    benchmark, benchmark_buffer_size: int
+):
+    """Benchmark quaternion to rotation matrix conversion using slangpy.
+
+    :param benchmark: The benchmark fixture.
+    :param benchmark_buffer_size: Size of the buffer for the test.
+    """
+    # Generate random unit quaternions in wxyz format.
+    q1 = np.random.randn(benchmark_buffer_size, 4).astype(np.float32)
+    q1 /= np.linalg.norm(q1, axis=1, keepdims=True)
+    # Convert to xyzw format.
+    q1_spy = to_slangpy(q1)
+    as_rotation_matrix = math_module.find_function("quat.asRotMat")
+    assert as_rotation_matrix is not None, "quat.asRotMat function not found."
+    # Benchmark the conversion.
+    benchmark(as_rotation_matrix, q1_spy)
