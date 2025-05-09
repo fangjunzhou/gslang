@@ -8,4 +8,4 @@ SHADER_PATH = pathlib.Path(__file__).parent / "slang"
 device = spy.create_device(include_paths=[SHADER_PATH.absolute()])
 logger.info(f"Slang device created: {device}")
 
-gaussian_module = spy.Module.load_from_file(device, "gaussian.slang")
+math_module = spy.Module.load_from_file(device, "math.slang")
