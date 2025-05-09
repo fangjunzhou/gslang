@@ -23,9 +23,10 @@ float4 conj(float4 q) { return float4(-q.xyz, q.w); }
 
 // Quaternion inverse.
 // @param q Quaternion.
-// @return The inverse of the quaternion.
+// @return The inverse of the quaternion. This function works for both normalized
+// and non-normalized quaternions by using the squared norm for robustness.
 public
-float4 inv(float4 q) { return conj(q) / length(q); }
+float4 inv(float4 q) { return conj(q) / dot(q, q); }
 
 // Convert a axis-angle representation to a quaternion.
 // @param v Axis-angle representation with v as the axis of rotation and the
