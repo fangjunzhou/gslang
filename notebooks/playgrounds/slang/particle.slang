@@ -9,5 +9,10 @@ struct Particle {
     this.velocity = velocity;
   }
 
-  void info(int id) { print("Particle {}", id); }
+  void info(int id) {
+    print("Particle {}: position={}, velocity={}", id, this.position,
+          this.velocity);
+  }
+
+  [mutating] void update(float dt) { this.position += dt * this.velocity; }
 };

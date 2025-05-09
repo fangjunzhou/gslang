@@ -34,10 +34,46 @@
         "type": "github"
       }
     },
+    "nixpkgs-cuda": {
+      "locked": {
+        "lastModified": 1746557022,
+        "narHash": "sha256-QkNoyEf6TbaTW5UZYX0OkwIJ/ZMeKSSoOMnSDPQuol0=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "1d3aeb5a193b9ff13f63f4d9cc169fb88129f860",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-24.11",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "nixpkgs-cuda": "nixpkgs-cuda",
+        "slangpy-src": "slangpy-src"
+      }
+    },
+    "slangpy-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1746754656,
+        "narHash": "sha256-EVL0fkdOy+X0ShB0ImDV+oBr1JxYaUi/TRtQmccYHM8=",
+        "ref": "refs/heads/main",
+        "rev": "b72ba7eac9f5e45f56faf23851b1a7d67d5a5913",
+        "revCount": 396,
+        "submodules": true,
+        "type": "git",
+        "url": "file:./external/slangpy"
+      },
+      "original": {
+        "submodules": true,
+        "type": "git",
+        "url": "file:./external/slangpy"
       }
     },
     "systems": {
