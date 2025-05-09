@@ -36,9 +36,11 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install Dependencies
         run: uv sync --all-extras --dev
 
       - name: Run pytest
-        run: uv run pytest --log-cli-level=INFO
+        run: uv run pytest tests --benchmark-skip --log-cli-level=INFO
