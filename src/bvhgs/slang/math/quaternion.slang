@@ -45,7 +45,7 @@ float4 fromAxisAngle(float3 v) {
 // @param q Quaternion.
 // @return The axis-angle representation of the quaternion.
 public
-float3 toAxisAngle(float4 q) {
+float3 asAxisAngle(float4 q) {
   float theta = 2 * acos(q.w);
   float norm = length(q.xyz);
   float3 res = float3(0, 0, 0);
@@ -69,12 +69,12 @@ float3 rotate(float4 q, float3 v) {
 // @param q Quaternion.
 // @return The rotation matrix representation of the quaternion.
 public
-float3x3 asRotationMat(float4 q) {
+float3x3 asRotMat(float4 q) {
   // TODO: Check correctness and efficiency.
-  float3 rx = mul(q, float4(1, 0, 0, 0)).xyz;
-  float3 ry = mul(q, float4(0, 1, 0, 0)).xyz;
-  float3 rz = mul(q, float4(0, 0, 1, 0)).xyz;
-  return float3x3(rx, ry, rz);
+  float3 rx = rotate(q, float3(1, 0, 0));
+  float3 ry = rotate(q, float3(0, 1, 0));
+  float3 rz = rotate(q, float3(0, 0, 1));
+  return transpose(float3x3(rx, ry, rz));
 }
 
 }  // namespace quat
