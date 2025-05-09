@@ -1,13 +1,13 @@
 from typing import Tuple
 import slangpy as spy
+import pytest
+
 import bvhgs
 from bvhgs import gaussian_module
 
-import pytest
-
 
 @pytest.fixture(params=[(16,)])
-def buffer_shape(request):
+def buffer_shape(request: pytest.FixtureRequest) -> Tuple[int]:
     return request.param
 
 
