@@ -61,7 +61,7 @@
               '';
               LD_LIBRARY_PATH = lib.makeLibraryPath (
                 slangpy-basePkgs ++
-                slangpy-linuxPkgs ++
+                (lib.optional pkgs.stdenv.isLinux slangpy-linuxPkgs) ++
                 slangpy-ldLibs ++ [
                   pkgs.imath
                 ]
