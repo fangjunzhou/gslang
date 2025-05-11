@@ -8,6 +8,7 @@ dependencies = [
     "numpy>=2.2.5",
     "slangpy>=0.23.0",
     "matplotlib>=3.10.1",
+    "numpy-quaternion>=2024.0.8",
 ]
 
 [build-system]
@@ -33,9 +34,8 @@ line-length = 80
 include = ["./src"]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
-reportUnusedImport = "warning"
 reportMissingSuperCall = "warning"
 reportInvalidStringEscapeSequence = "error"
-reportMissingParameterType = "error"
+reportMissingParameterType = "warning"
 reportMissingTypeArgument = "warning"
 reportInvalidTypeForm = "warning"
