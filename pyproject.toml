@@ -9,6 +9,7 @@ dependencies = [
     "slangpy>=0.23.0",
     "matplotlib>=3.10.1",
     "numpy-quaternion>=2024.0.8",
+    "pyglm>=2.8.2",
 ]
 
 [build-system]
