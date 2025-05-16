@@ -39,4 +39,12 @@ struct Camera {
     // TODO: Imlement analytical Jacobian.
     return float3x3(0);
   }
+
+  // Convert a 3D Gaussian to a 2D Gaussian.
+  // @param g The 3D Gaussian.
+  // @return The 2D Gaussian.
+  Gaussian2D toGaussian2D(Gaussian3D g) {
+    // TODO: Implement viewing and projection transform to convert 3D Gaussian
+    // into 2D Gaussian.
+  }
 };
