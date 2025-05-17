@@ -2,7 +2,6 @@ from typing import Tuple
 import slangpy as spy
 import pytest
 
-import bvhgs
 from bvhgs import gaussian_module
 
 
