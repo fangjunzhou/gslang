@@ -29,7 +29,6 @@ struct Camera {
   // @param p The point in view space.
   // @return The point in ray space.
   float3 toRay(float3 p) {
-    // TODO: Handle numerical stability.
     float z = max(p.z, this.EPSILON);
     float inv_z = 1.0 / z;
     return float3(p.x * inv_z, p.y * inv_z, length(p));
@@ -39,7 +38,6 @@ struct Camera {
   // @param p The point in view space.
   // @return The Jacobian of the projective transformation.
   float3x3 toRayJ(float3 p) {
-    // TODO: Handle numerical stability.
     float len = length(p);
     len = max(len, this.EPSILON);
 
