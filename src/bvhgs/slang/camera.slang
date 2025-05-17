@@ -9,7 +9,7 @@ struct Camera {
   float3 translation;
   float2 sensorSize;
   float focalLength;
-
+  const float EPSILON = 1e-6;
   // Rotation matrix in affine viewing transform.
   property W : float3x3 {
     get { return quat.asRotMat(this.rotation); }
@@ -30,7 +30,8 @@ struct Camera {
   // @return The point in ray space.
   float3 toRay(float3 p) {
     // TODO: Handle numerical stability.
-    float inv_z = 1.0 / p.z;
+    float z = max(p.z, this.EPSILON);
+    float inv_z = 1.0 / z;
     return float3(p.x * inv_z, p.y * inv_z, length(p));
   }
 
@@ -40,6 +41,7 @@ struct Camera {
   float3x3 toRayJ(float3 p) {
     // TODO: Handle numerical stability.
     float len = length(p);
+    len = max(len, this.EPSILON);
 
     float3 col0 = float3(1.0 / p.z, 0, p.x / len);
 
