@@ -1,7 +1,7 @@
 module gaussian;
 
 public
-struct Gaussian3D {
+struct Gaussian3D : IDifferentiable {
   float3 position;
   float4 rotation;
   float3 scale;
@@ -23,14 +23,13 @@ struct Gaussian3D {
     this.opacity = opacity;
   }
 
- public
-  float3x3 covariance() {
+  [Differentiable] public float3x3 covariance() {
     // TODO: Implement covariance matrix.
   }
 };
 
 public
-struct Gaussian2D {
+struct Gaussian2D : IDifferentiable {
   // Gaussian position in normalized device coordinates.
   float3 position;
   // Gaussian covariance in normalized device coordinates.
@@ -59,8 +58,7 @@ struct Gaussian2D {
   }
 
   // Evaluate the Gaussian at a given point in normalized device coordinates.
- public
-  float3 eval(float2 uv) {
+  [Differentiable] public float3 eval(float2 uv) {
     // TODO: Implement Gaussian2D evaluation.
   }
 };
