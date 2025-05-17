@@ -29,15 +29,42 @@ struct Camera {
   // @param p The point in view space.
   // @return The point in ray space.
   float3 toRay(float3 p) {
-    // TODO: Implement projective transformation.
+    float inv_z = 1.0 / p.z;
+    return float3(
+        p.x * inv_z,
+        p.y * inv_z,
+        length(p)
+    );
   }
 
   // Jacobian of the projective transformation.
   // @param p The point in view space.
   // @return The Jacobian of the projective transformation.
   float3x3 toRayJ(float3 p) {
-    // TODO: Imlement analytical Jacobian.
-    return float3x3(0);
+      // TODO: Imlement analytical Jacobian.
+      float len = length(p);
+
+      float3 col0 = float3(
+          1.0 / p.z,
+          0,
+          p.x / len
+      );
+
+      float3 col1 = float3(
+          0,
+          1.0 / p.z,
+          p.y / len
+      );
+      
+
+      float3 col2 = float3(
+          -p.x / (p.z * p.z),
+          -p.y / (p.z * p.z),
+          p.z / len
+      );
+
+      return float3x3(col0, col1, col2);
+
   }
 
   // Convert a 3D Gaussian to a 2D Gaussian.
@@ -46,5 +73,28 @@ struct Camera {
   Gaussian2D toGaussian2D(Gaussian3D g) {
     // TODO: Implement viewing and projection transform to convert 3D Gaussian
     // into 2D Gaussian.
+    float3 u = this.toView(g.Position);
+
+    // Vk'
+    float3x3 Vobj = g.covariance();
+    float3x3 Vcam = mul(this.W, mul(Vobj, transpose(this.W)));
+
+    //to ray space
+    float3 x = this.toRay(u);
+    float3x3 J = this.toRayJ(u);
+    float3x3 Vk = mul(J, mul(Vcam, transpose(J)));
+
+    float2x2 conv2d = float2x2(
+        Vk[0][0], Vk[0][1],
+        Vk[1][0], Vk[1][1]
+    );
+    
+    return Gaussian2D(
+        float3(x),
+        conv2d,
+        g.Color,
+        g.Opacity
+    );
+
   }
 };
