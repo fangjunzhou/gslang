@@ -9,6 +9,20 @@ struct Gaussian3D : IDifferentiable {
   float3 color;
   float opacity;
 
+  public 
+  property float3 Position {
+    get { return this.position; }
+  }
+
+  public
+  property float3 Color {
+      get { return this.color; }
+  }
+
+  public
+  property float Opacity {
+      get { return this.opacity; }
+  }
   // TODO: Spherical harmonics.
 
  public
@@ -45,6 +59,8 @@ struct Gaussian2D : IDifferentiable {
   property float depth {
     get { return this.position.z; }
   }
+
+
 
  public
   __init(float3 position = float3(0, 0, 0),
