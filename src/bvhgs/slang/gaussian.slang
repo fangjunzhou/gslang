@@ -2,27 +2,18 @@ module gaussian;
 
 public
 struct Gaussian3D : IDifferentiable {
+ public
   float3 position;
+ public
   float4 rotation;
+ public
   float3 scale;
 
+ public
   float3 color;
+ public
   float opacity;
 
-  public 
-  property float3 Position {
-    get { return this.position; }
-  }
-
-  public
-  property float3 Color {
-      get { return this.color; }
-  }
-
-  public
-  property float Opacity {
-      get { return this.opacity; }
-  }
   // TODO: Spherical harmonics.
 
  public
@@ -45,22 +36,18 @@ struct Gaussian3D : IDifferentiable {
 public
 struct Gaussian2D : IDifferentiable {
   // Gaussian position in normalized device coordinates.
+ public
   float3 position;
   // Gaussian covariance in normalized device coordinates.
+ public
   float2x2 covariance;
 
   // Gaussian color.
+ public
   float3 color;
   // Gaussian opacity.
-  float opacity;
-
-  // Gaussian depth in normalized device coordinates.
  public
-  property float depth {
-    get { return this.position.z; }
-  }
-
-
+  float opacity;
 
  public
   __init(float3 position = float3(0, 0, 0),
