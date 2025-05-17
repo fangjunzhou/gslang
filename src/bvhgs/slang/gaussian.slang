@@ -77,7 +77,7 @@ struct Gaussian3D : IDifferentiable {
       float y30 = 0.25 * c3 * dir.y * (3 * dir.x * dir.x - dir.y * dir.y);
       float y31 = 0.5 * c4 * dir.x * dir.y * dir.z;
       float y32 = 0.25 * c5 * dir.y * (5 * dir.z * dir.z - 1);
-      float y33 = 0.25 * c6 * (5 * dir.z * dir.z - 3 * dir.z);
+      float y33 = 0.25 * c6 * (5 * dir.z * dir.z * dir.z - 3 * dir.z);
       float y34 = 0.25 * c5 * dir.x * (5 * dir.z * dir.z - 1);
       float y35 = 0.25 * c4 * (dir.x * dir.x - dir.y * dir.y) * dir.z;
       float y36 = 0.25 * c3 * dir.x * (dir.x * dir.x - 3 * dir.y * dir.y);
