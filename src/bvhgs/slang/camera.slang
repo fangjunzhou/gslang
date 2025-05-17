@@ -23,7 +23,7 @@ struct Camera {
   // Convert a point in world space to view space.
   // @param p The point in world space.
   // @return The point in view space.
-  float3 toView(float3 p) { return this.W * p + this.d; }
+  float3 toView(float3 p) { return mul(this.W, p) + this.d; }
 
   // Convert a point in view space to ray space.
   // @param p The point in view space.
