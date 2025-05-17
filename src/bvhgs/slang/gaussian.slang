@@ -44,6 +44,25 @@ struct Gaussian3D : IDifferentiable {
     // TODO: Implement covariance matrix.
   }
 
+  /**
+   * Computes the spherical harmonics (SH) value for a given direction.
+   *
+   * @param dir A 3D unit vector representing the direction in Cartesian coordinates.
+   *            It is expected to be normalized (i.e., |dir| = 1).
+   * @return A float3 value representing the SH evaluation for the given direction.
+   *         Each component corresponds to the weighted sum of SH basis functions
+   *         for the respective color channel (e.g., RGB).
+   *
+   * The SH coefficients (sh10, sh11, ..., sh36) are ordered by degree (l) and
+   * order (m) as follows:
+   *   - l = 1: sh10 (m = -1), sh11 (m = 0), sh12 (m = 1)
+   *   - l = 2: sh20 (m = -2), sh21 (m = -1), sh22 (m = 0), sh23 (m = 1), sh24 (m = 2)
+   *   - l = 3: sh30 (m = -3), sh31 (m = -2), ..., sh36 (m = 3)
+   *
+   * The output is computed as a linear combination of SH basis functions (y_lm)
+   * and their corresponding coefficients (sh_lm). The basis functions are
+   * precomputed using the input direction and constants (c0, c1, ...).
+   */
   [Differentiable] public float3 sphericalHarmonics(float3 dir) {
       float y10 = 0.5 * c0 * dir.y;
       float y11 = 0.5 * c0 * dir.z;
