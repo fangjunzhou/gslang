@@ -31,5 +31,36 @@ struct Gaussian3D {
 
 public
 struct Gaussian2D {
-  // TODO: Implement Gaussian2D.
+  // Gaussian position in normalized device coordinates.
+  float3 position;
+  // Gaussian covariance in normalized device coordinates.
+  float2x2 covariance;
+
+  // Gaussian color.
+  float3 color;
+  // Gaussian opacity.
+  float opacity;
+
+  // Gaussian depth in normalized device coordinates.
+ public
+  property float depth {
+    get { return this.position.z; }
+  }
+
+ public
+  __init(float3 position = float3(0, 0, 0),
+         float2x2 covariance = float2x2(1, 0, 0, 1),
+         float3 color = float3(1, 0, 1), float opacity = 1) {
+    this.position = position;
+    this.covariance = covariance;
+
+    this.color = color;
+    this.opacity = opacity;
+  }
+
+  // Evaluate the Gaussian at a given point in normalized device coordinates.
+ public
+  float3 eval(float2 uv) {
+    // TODO: Implement Gaussian2D evaluation.
+  }
 };
