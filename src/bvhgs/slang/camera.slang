@@ -3,13 +3,14 @@ module camera;
 import math;
 import gaussian;
 
-public
-struct Camera {
+static const float EPS = 1e-6;
+
+public struct Camera {
   float4 rotation;
   float3 translation;
   float2 sensorSize;
   float focalLength;
-  const float EPSILON = 1e-6;
+
   // Rotation matrix in affine viewing transform.
   property W : float3x3 {
     get { return quat.asRotMat(this.rotation); }
@@ -23,23 +24,23 @@ struct Camera {
   // Convert a point in world space to view space.
   // @param p The point in world space.
   // @return The point in view space.
-  float3 toView(float3 p) { return mul(this.W, p) + this.d; }
+  float3 toView(float3 p) { return mul(this.W, p) + this.d; };
 
   // Convert a point in view space to ray space.
   // @param p The point in view space.
   // @return The point in ray space.
   float3 toRay(float3 p) {
-    float z = max(p.z, this.EPSILON);
+    float z = max(p.z, EPS);
     float inv_z = 1.0 / z;
     return float3(p.x * inv_z, p.y * inv_z, length(p));
-  }
+  };
 
   // Jacobian of the projective transformation.
   // @param p The point in view space.
   // @return The Jacobian of the projective transformation.
   float3x3 toRayJ(float3 p) {
     float len = length(p);
-    len = max(len, this.EPSILON);
+    len = max(len, EPS);
 
     float3 col0 = float3(1.0 / p.z, 0, p.x / len);
 
@@ -48,7 +49,7 @@ struct Camera {
     float3 col2 = float3(-p.x / (p.z * p.z), -p.y / (p.z * p.z), p.z / len);
 
     return float3x3(col0, col1, col2);
-  }
+  };
 
   // Convert a 3D Gaussian to a 2D Gaussian.
   // @param g The 3D Gaussian.
@@ -72,5 +73,5 @@ struct Camera {
     float3 color = g.color + sh;
 
     return Gaussian2D(float3(x), conv2d, color, g.opacity);
-  }
+  };
 };
