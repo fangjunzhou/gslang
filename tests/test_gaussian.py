@@ -3,7 +3,7 @@ import slangpy as spy
 import pytest
 
 from bvhgs import gaussian_module
-
+SH_COUNT = 15
 
 @pytest.fixture(params=[(16,)])
 def buffer_shape(request: pytest.FixtureRequest) -> Tuple[int]:
@@ -28,6 +28,8 @@ def test_gaussian3d_init_default(buffer_shape: Tuple[int]):
         assert gaussian["scale"] == spy.float3(1, 1, 1)
         assert gaussian["color"] == spy.float3(1, 0, 1)
         assert gaussian["opacity"] == 1
+        for j in range(SH_COUNT):
+            assert gaussian["sh"][j] == spy.float3(0, 0, 0)
 
 
 def test_gaussian3d_init_custom(buffer_shape: Tuple[int]):
@@ -38,7 +40,10 @@ def test_gaussian3d_init_custom(buffer_shape: Tuple[int]):
     gaussian_buf = spy.InstanceBuffer(
         struct=gaussian_module.Gaussian3D.as_struct(), shape=buffer_shape
     )
+    
+    sh = [spy.float3(i, -i, i * 2) for i in range(SH_COUNT)]
     gaussian_buf.construct(
+        shCoeffs=sh,
         position=spy.float3(1, 2, 3),
         rotation=spy.float4(1, 0, 0, 0),
         scale=spy.float3(4, 5, 6),
@@ -54,3 +59,5 @@ def test_gaussian3d_init_custom(buffer_shape: Tuple[int]):
         assert gaussian["scale"] == spy.float3(4, 5, 6)
         assert gaussian["color"] == spy.float3(0.5, 0.5, 0.5)
         assert gaussian["opacity"] == 0.5
+        for j in range(SH_COUNT):
+            assert gaussian["sh"][j] == sh[j]
