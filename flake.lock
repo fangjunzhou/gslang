@@ -61,11 +61,10 @@
     "slangpy-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1747069611,
-        "narHash": "sha256-Ep1y8+Fn6tkKF/lk5qE9yO08S9Ytue/YVXFCNHPuJco=",
-        "ref": "refs/heads/main",
-        "rev": "b77706cf52ae05631f45873e12fb818655a9ec2e",
-        "revCount": 409,
+        "lastModified": 1747119702,
+        "narHash": "sha256-svZldznUrhKQzBxK//KGl36udiSFRLntakHOuDk/s+E=",
+        "rev": "cb41f24002d712e3df89853aacb9b5d168a0e1d9",
+        "revCount": 417,
         "submodules": true,
         "type": "git",
         "url": "file:./external/slangpy"
