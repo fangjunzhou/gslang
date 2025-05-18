@@ -40,6 +40,7 @@
             # Python environment.
             python3
             uv
+            shader-slang
           ];
         in
         {
