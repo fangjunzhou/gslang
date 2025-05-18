@@ -38,9 +38,9 @@ public struct Gaussian3D : IDifferentiable {
     this.rotation = rotation;
     this.scale = scale;
     this.sh = shCoeffs;
-
     this.color = color;
     this.opacity = opacity;
+    
   };
 
   [Differentiable] public float3x3 covariance() {
@@ -104,9 +104,9 @@ public struct Gaussian2D : IDifferentiable {
   public float2x2 covariance;
 
   // Gaussian color.
-  public float3 color;
+  public float3 color_sigmoid;
   // Gaussian opacity.
-  public float opacity;
+  public float opacity_sigmoid;
 
   float2x2 cachedInvCov;
   float cachedDet;
@@ -118,8 +118,8 @@ public struct Gaussian2D : IDifferentiable {
     this.position = position;
     this.covariance = covariance;
 
-    this.color = color;
-    this.opacity = opacity;
+    this.color_sigmoid = color;
+    this.opacity_sigmoid = opacity;
 
     // cache to avoid recomputing
     float a = this.covariance[0][0];
@@ -142,6 +142,6 @@ public struct Gaussian2D : IDifferentiable {
     // * inv(cov) * (uv - position))
     float2 diff = uv - this.position.xy;
     float val = -0.5 * dot(diff, mul(this.cachedInvCov, diff));
-    return this.opacity * this.color * this.cachedNorm * exp(val);
+    return this.opacity_sigmoid * this.color_sigmoid * this.cachedNorm * exp(val);
   };
 };
