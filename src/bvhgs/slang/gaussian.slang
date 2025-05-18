@@ -21,15 +21,17 @@ public struct Gaussian3D : IDifferentiable {
 
   // Spherical harmonics.
   public float3 sh[SH_COUNT];
-  private static float3 defaultSH[SH_COUNT] = { float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-                                                float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-                                                float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-                                                float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-                                                float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0) };
+  private static float3 defaultSH[SH_COUNT] = {
+    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0)
+  };
 
-  public __init(float3 position = float3(0, 0, 0), float4 rotation = float4(0, 0, 0, 1),
-                float3 scale = float3(1, 1, 1), float3 color = float3(1, 0, 1), float opacity = 1,
-                float3 shCoeffs[SH_COUNT] = defaultSH, ) {
+  public __init(float3 position = float3(0, 0, 0),
+                float4 rotation = float4(0, 0, 0, 1),
+                float3 scale = float3(1, 1, 1), float3 color = float3(1, 0, 1),
+                float opacity = 1, float3 shCoeffs[SH_COUNT] = defaultSH, ) {
     this.position = position;
     this.rotation = rotation;
     this.scale = scale;
@@ -110,7 +112,8 @@ public struct Gaussian2D : IDifferentiable {
   float cachedDet;
   float cachedNorm;
 
-  public __init(float3 position = float3(0, 0, 0), float2x2 covariance = float2x2(1, 0, 0, 1),
+  public __init(float3 position = float3(0, 0, 0),
+                float2x2 covariance = float2x2(1, 0, 0, 1),
                 float3 color = float3(1, 0, 1), float opacity = 1) {
     this.position = position;
     this.covariance = covariance;
@@ -128,8 +131,8 @@ public struct Gaussian2D : IDifferentiable {
     this.cachedDet = max(this.cachedDet, EPS);
     this.cachedNorm = 1 / (2 * PI * sqrt(this.cachedDet));
 
-    this.cachedInvCov =
-        float2x2(d / this.cachedDet, -b / this.cachedDet, -c / this.cachedDet, a / this.cachedDet);
+    this.cachedInvCov = float2x2(d / this.cachedDet, -b / this.cachedDet,
+                                 -c / this.cachedDet, a / this.cachedDet);
   }
 
   // Evaluate the Gaussian at a given point in normalized device coordinates.

@@ -6,27 +6,33 @@ import gaussian;
 static const float EPS = 1e-6;
 
 public struct Camera {
-  float4 rotation;
-  float3 translation;
-  float2 sensorSize;
-  float focalLength;
+  float4 _rotation;
+  float3 _translation;
+  float2 _sensorSize;
+  float _focalLength;
 
   // Rotation matrix in affine viewing transform.
   property W : float3x3 {
-    get { return quat.asRotMat(this.rotation); }
+    get { return quat.asRotMat(this._rotation); }
   }
 
   // Trnslation vector in affine viewing transform.
   property d : float3 {
-    get { return this.translation; }
+    get { return this._translation; }
+  }
+
+  public property sensorSize : float2 {
+    get { return this._sensorSize; }
+  }
+
+  public property focalLength : float {
+    get { return this._focalLength; }
   }
 
   // Convert a point in world space to view space.
   // @param p The point in world space.
   // @return The point in view space.
-  float3 toView(float3 p) {
-    return mul(this.W, p) + this.d;
-  }
+  float3 toView(float3 p) { return mul(this.W, p) + this.d; }
 
   // Convert a point in view space to ray space.
   // @param p The point in view space.
@@ -56,6 +62,7 @@ public struct Camera {
   // Convert a 3D Gaussian to a 2D Gaussian.
   // @param g The 3D Gaussian.
   // @return The 2D Gaussian.
+  [Differentiable]
   Gaussian2D toGaussian2D(Gaussian3D g) {
     float3 u = this.toView(g.position);
 
