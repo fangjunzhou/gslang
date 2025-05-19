@@ -44,6 +44,7 @@ public struct Gaussian3D : IDifferentiable {
   [Differentiable]
   public float3x3 covariance() {
     // TODO: Implement covariance matrix.
+    return float3x3(1, 0, 0, 0, 1, 0, 0, 0, 1);
   }
 
   /**
@@ -112,6 +113,7 @@ public struct Gaussian2D : IDifferentiable {
   float cachedDet;
   float cachedNorm;
 
+  [Differentiable]
   public __init(float3 position = float3(0, 0, 0),
                 float2x2 covariance = float2x2(1, 0, 0, 1),
                 float3 color = float3(1, 0, 1), float opacity = 1) {

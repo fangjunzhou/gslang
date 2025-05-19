@@ -6,22 +6,26 @@ import gaussian;
 static const float EPS = 1e-6;
 
 public struct Camera {
-  float4 _rotation;
-  float3 _translation;
-  float2 _sensorSize;
-  float _focalLength;
+  no_diff float4 _rotation;
+  no_diff float3 _translation;
+  no_diff uint2 _sensorSize;
+  no_diff float _focalLength;
 
   // Rotation matrix in affine viewing transform.
   property W : float3x3 {
+    [Differentiable]
+    [NoDiffThis]
     get { return quat.asRotMat(this._rotation); }
   }
 
   // Trnslation vector in affine viewing transform.
   property d : float3 {
+    [Differentiable]
+    [NoDiffThis]
     get { return this._translation; }
   }
 
-  public property sensorSize : float2 {
+  public property sensorSize : uint2 {
     get { return this._sensorSize; }
   }
 
@@ -32,11 +36,14 @@ public struct Camera {
   // Convert a point in world space to view space.
   // @param p The point in world space.
   // @return The point in view space.
+  [Differentiable]
+  [NoDiffThis]
   float3 toView(float3 p) { return mul(this.W, p) + this.d; }
 
   // Convert a point in view space to ray space.
   // @param p The point in view space.
   // @return The point in ray space.
+  [Differentiable]
   float3 toRay(float3 p) {
     float z = max(p.z, EPS);
     float inv_z = 1.0 / z;
@@ -46,6 +53,7 @@ public struct Camera {
   // Jacobian of the projective transformation.
   // @param p The point in view space.
   // @return The Jacobian of the projective transformation.
+  [Differentiable]
   float3x3 toRayJ(float3 p) {
     float len = length(p);
     len = max(len, EPS);
