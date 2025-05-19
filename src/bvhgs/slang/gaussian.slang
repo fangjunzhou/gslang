@@ -36,7 +36,6 @@ public struct Gaussian3D : IDifferentiable {
     this.rotation = rotation;
     this.scale = scale;
     this.sh = shCoeffs;
-
     this.color = color;
     this.opacity = opacity;
   }

@@ -77,7 +77,7 @@ public struct Camera {
     // Vk'
     float3x3 Vobj = g.covariance();
     float3x3 Vcam = mul(this.W, mul(Vobj, transpose(this.W)));
-
+    
     // to ray space
     float3 x = this.toRay(u);
     float3x3 J = this.toRayJ(u);
