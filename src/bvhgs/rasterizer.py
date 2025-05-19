@@ -2,11 +2,11 @@ import slangpy as spy
 
 from bvhgs import device
 from bvhgs.camera import Camera
-from bvhgs.gaussian import GaussianBuffer
+from bvhgs.gaussian import GaussianCloud
 
 
 class Rasterizer:
-    gaussians: GaussianBuffer
+    gaussians: GaussianCloud
     camera: Camera
 
     gaussian_buf: spy.Buffer
@@ -14,7 +14,7 @@ class Rasterizer:
 
     kernel: spy.ComputeKernel
 
-    def __init__(self, gaussians: GaussianBuffer, camera: Camera) -> None:
+    def __init__(self, gaussians: GaussianCloud, camera: Camera) -> None:
         """Constructor for the Rasterizer class.
 
         :param gaussians: GaussianBuffer object containing the Gaussian points.

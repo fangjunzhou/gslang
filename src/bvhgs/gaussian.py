@@ -4,8 +4,8 @@ from typing import Any, Dict
 import numpy as np
 
 
-class GaussianBuffer:
-    """A buffer for storing all the Gaussian points in the scene.
+class GaussianCloud:
+    """A buffer for storing all the Gaussian point cloud in the scene.
 
     :param positions: (N, 3) array of positions of the Gaussian points.
     :param rotations: (N, 4) array of rotations of the Gaussian points.
