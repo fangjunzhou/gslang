@@ -14,5 +14,6 @@ struct Particle {
           this.velocity);
   }
 
-  [mutating] void update(float dt) { this.position += dt * this.velocity; }
+  [mutating]
+  void update(float dt) { this.position += dt * this.velocity; }
 };
