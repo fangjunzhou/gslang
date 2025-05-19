@@ -1,4 +1,6 @@
+import slangpy as spy
 import pathlib
+from typing import Any, Dict
 import numpy as np
 
 
@@ -24,16 +26,37 @@ class GaussianBuffer:
 
     num_gaussians: int
 
-    def __init__(self) -> None:
-        self.positions = np.zeros((0, 3), dtype=np.float32)
-        self.rotations = np.zeros((0, 4), dtype=np.float32)
-        self.scales = np.zeros((0, 3), dtype=np.float32)
+    def __init__(self, size: int) -> None:
+        self.positions = np.random.rand(size, 3).astype(np.float32)
+        self.rotations = np.random.rand(size, 4).astype(np.float32)
+        self.scales = np.random.rand(size, 3).astype(np.float32)
 
-        self.colors = np.zeros((0, 3), dtype=np.float32)
-        self.opacities = np.zeros((0, 1), dtype=np.float32)
-        self.spherical_harmonics = np.zeros((0, 15, 3), dtype=np.float32)
+        self.colors = np.random.rand(size, 3).astype(np.float32)
+        self.opacities = np.random.rand(size, 1).astype(np.float32)
+        self.spherical_harmonics = np.random.rand(size, 15, 3).astype(
+            np.float32
+        )
 
-        self.num_gaussians = 0
+        self.num_gaussians = size
+
+    def __len__(self) -> int:
+        """Return the number of Gaussian points in the buffer."""
+        return self.num_gaussians
+
+    def __getitem__(self, index: int) -> Dict[str, Any]:
+        """Return the Gaussian point at the given index.
+
+        :param index: index of the Gaussian point.
+        :return: Gaussian point at the given index.
+        """
+        return {
+            "position": self.positions[index],
+            "rotation": self.rotations[index],
+            "scale": self.scales[index],
+            "color": self.colors[index],
+            "opacity": self.opacities[index].item(),
+            "sh": [col for col in self.spherical_harmonics[index]],
+        }
 
     def load_from_ply(self, path: pathlib.Path):
         """Load a Gaussian point cloud from a PLY file.
