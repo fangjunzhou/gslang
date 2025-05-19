@@ -1,4 +1,4 @@
 module math;
 
-__include math.quaternion;
-__include math.utils;
+__include "./math/quaternion.slang";
+__include "./math/utils.slang";
