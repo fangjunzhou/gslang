@@ -2,7 +2,6 @@ module camera;
 
 import math;
 import gaussian;
-import math;
 
 static const float EPS = 1e-6;
 
