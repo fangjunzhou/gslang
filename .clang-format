@@ -1,6 +1,6 @@
 ---
-Language:        Cpp
-AccessModifierOffset: 0
+Language:        CSharp
+AccessModifierOffset: -1
 AlignAfterOpenBracket: Align
 AlignArrayOfStructures: None
 AlignConsecutiveAssignments:
@@ -79,9 +79,6 @@ AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakBeforeMultilineStrings: true
 AttributeMacros:
   - __capability
-  - public
-  - private
-  - internal
 BinPackArguments: true
 BinPackParameters: true
 BitFieldColonSpacing: Both
