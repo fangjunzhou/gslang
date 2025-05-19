@@ -1,4 +1,4 @@
-implementing math;
+implementing "../math.slang";
 
 namespace quat {
 
