@@ -1,3 +1,4 @@
+from typing import Any, Dict
 from pyglm import glm
 
 
@@ -31,3 +32,21 @@ class Camera:
         self.translation = translation
         self.sensor_size = sensor_size
         self.focal_length = focal_length
+
+    def to_slang(self) -> Dict[str, Any]:
+        """Convert the camera parameters to a dictionary format for Slang.
+
+        :return: Dictionary containing the camera parameters.
+        """
+        rot_xyzw = [
+            self.rotation.x,
+            self.rotation.y,
+            self.rotation.z,
+            self.rotation.w,
+        ]
+        return {
+            "_rotation": rot_xyzw,
+            "_translation": self.translation,
+            "_sensorSize": self.sensor_size,
+            "_focalLength": self.focal_length,
+        }

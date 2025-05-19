@@ -72,7 +72,7 @@ public struct Camera {
   // @param g The 3D Gaussian.
   // @return The 2D Gaussian.
   [Differentiable]
-  Gaussian2D toGaussian2D(Gaussian3D g) {
+  public Gaussian2D toGaussian2D(Gaussian3D g) {
     float3 u = this.toView(g.position);
 
     // Vk'
