@@ -41,27 +41,18 @@ public struct Gaussian3D : IDifferentiable {
     this.opacity = opacity;
   }
 
-  public float3 scaleExp() {
-    return exp(this.scale);
-  }
+  public float3 scaleExp() { return exp(this.scale); }
 
-  public float3 colorSig() {
-    return utils::sigmoid3(this.color);
-  }
+  public float3 colorSig() { return utils::sigmoid3(this.color); }
 
-  public float opacitySig() {
-    return utils::sigmoid(this.opacity);
-  }
+  public float opacitySig() { return utils::sigmoid(this.opacity); }
 
   [Differentiable]
   public float3x3 covariance() {
     float3 scaleExp = exp(this.scale);
     float3x3 R = quat::asRotMat(rotation);
-     float3x3 S = float3x3(
-         float3(scaleExp.x, 0, 0),
-         float3(0, scaleExp.y, 0),
-         float3(0, 0, scaleExp.z)
-    );
+    float3x3 S = float3x3(float3(scaleExp.x, 0, 0), float3(0, scaleExp.y, 0),
+                          float3(0, 0, scaleExp.z));
     return mul(R, mul(S, transpose(S)) * transpose(R));
   }
 
@@ -80,7 +71,7 @@ public struct Gaussian3D : IDifferentiable {
   public float4 eval(float3 pos, float3 dir) {
     float3 d = pos - this.position;
     float3x3 covInv = inv3x3(covariance());
-    float exponent = - dot(d, mul(covInv, d));
+    float exponent = -dot(d, mul(covInv, d));
     float rho = exp(exponent);
 
     float alpha = this.opacitySig() * rho;
