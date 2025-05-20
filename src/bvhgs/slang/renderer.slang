@@ -14,9 +14,10 @@ RWStructuredBuffer<int> g_cull_flag;
 RWStructuredBuffer<int> g_cull_prefix;
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d_culled;
 // Gaussian tile.
-RWStructuredBuffer<int> num_tile;
-RWStructuredBuffer<int> num_tile_prefix;
-RWStructuredBuffer<Tuple<uint64_t, uint>> gaussian_table;
+RWStructuredBuffer<int> g_num_tile;
+RWStructuredBuffer<int> g_num_tile_prefix;
+RWStructuredBuffer<Tuple<uint64_t, uint>> g_gaussian_table;
+RWStructuredBuffer<uint> g_tile_offs;
 
 // Render target.
 RWTexture2D<float4> g_render_target;
