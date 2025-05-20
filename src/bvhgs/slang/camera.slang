@@ -77,7 +77,7 @@ public struct Camera {
     // Vk'
     float3x3 Vobj = g.covariance();
     float3x3 Vcam = mul(this.W, mul(Vobj, transpose(this.W)));
-    
+
     // to ray space
     float3 x = this.toRay(u);
     float3x3 J = this.toRayJ(u);
@@ -90,5 +90,14 @@ public struct Camera {
     float3 color = g.color + sh;
 
     return Gaussian2D(float3(x), conv2d, color, g.opacity);
+  }
+
+  // Convert a 2D Gaussian from ray space to screen space (0, 0) to (1, 1).
+  // @param g The 2D Gaussian in ray space.
+  // @return The 2D Gaussian in screen space.
+  [Differentiable]
+  public Gaussian2D toScreenSpace(Gaussian2D g) {
+    // TODO: Implement ray space to screen space conversion.
+    return g;
   }
 };
