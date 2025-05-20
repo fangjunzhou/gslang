@@ -47,8 +47,9 @@ public struct Camera {
   float3 toRay(float3 p) {
     float z = max(p.z, EPS);
     float inv_z = 1.0 / z;
+    float sign = sign(p.z);
     // FIX: Use sign z for ray space z coordinate.
-    return float3(p.x * inv_z, p.y * inv_z, length(p));
+    return float3(p.x * inv_z, p.y * inv_z, length(p) * sign);
   }
 
   // Jacobian of the projective transformation.
@@ -58,12 +59,13 @@ public struct Camera {
   float3x3 toRayJ(float3 p) {
     float len = length(p);
     len = max(len, EPS);
+    float sign = sign(p.z);
 
-    float3 col0 = float3(1.0 / p.z, 0, p.x / len);
+    float3 col0 = float3(1.0 / p.z, 0, (p.x / len) * sign);
 
-    float3 col1 = float3(0, 1.0 / p.z, p.y / len);
+    float3 col1 = float3(0, 1.0 / p.z, (p.y / len) * sign);
 
-    float3 col2 = float3(-p.x / (p.z * p.z), -p.y / (p.z * p.z), p.z / len);
+    float3 col2 = float3(-p.x / (p.z * p.z), -p.y / (p.z * p.z), (p.z / len) * sign);
 
     return float3x3(col0, col1, col2);
   }
@@ -90,9 +92,8 @@ public struct Camera {
     float2x2 conv2d = float2x2(Vk[0][0], Vk[0][1], Vk[1][0], Vk[1][1]);
 
     float3 viewDir = normalize(-u);
-    float3 sh = g.sphericalHarmonics(viewDir);
-    float3 color = g.color + sh;
+    float4 rgba = g.eval(g.position, viewDir);
 
-    return Gaussian2D(float3(x), conv2d, color, g.opacity);
+    return Gaussian2D(float3(x), conv2d, rgba.xyz, rgba.a);
   }
 };
