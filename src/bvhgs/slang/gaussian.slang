@@ -40,11 +40,11 @@ public struct Gaussian3D : IDifferentiable {
     this.color = color;
     this.opacity = opacity;
   }
-
+  [Differentiable]
   public float3 scaleExp() { return exp(this.scale); }
-
+  [Differentiable]
   public float3 colorSig() { return utils::sigmoid3(this.color); }
-
+  [Differentiable]
   public float opacitySig() { return utils::sigmoid(this.opacity); }
 
   [Differentiable]
@@ -55,7 +55,7 @@ public struct Gaussian3D : IDifferentiable {
                           float3(0, 0, scaleExp.z));
     return mul(R, mul(S, transpose(S)) * transpose(R));
   }
-
+  [Differentiable]
   private float3x3 inv3x3(float3x3 m) {
     float3 c0 = m[0];
     float3 c1 = m[1];
@@ -67,7 +67,7 @@ public struct Gaussian3D : IDifferentiable {
     float det = dot(c0, adj0);
     return float3x3(adj0, adj1, adj2) / det;
   }
-
+  [Differentiable]
   public float4 eval(float3 pos, float3 dir) {
     float3 d = pos - this.position;
     float3x3 covInv = inv3x3(covariance());
