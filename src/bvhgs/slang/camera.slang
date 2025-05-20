@@ -47,6 +47,7 @@ public struct Camera {
   float3 toRay(float3 p) {
     float z = max(p.z, EPS);
     float inv_z = 1.0 / z;
+    // FIX: Use sign z for ray space z coordinate.
     return float3(p.x * inv_z, p.y * inv_z, length(p));
   }
 

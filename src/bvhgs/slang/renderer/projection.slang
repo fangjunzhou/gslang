@@ -11,7 +11,8 @@ void project(uint3 tid: SV_DispatchThreadID) {
   g_cull_flag[tid.x] = g_gaussian_2d[tid.x].position.x >= 0.0 &&
                        g_gaussian_2d[tid.x].position.x <= 1.0 &&
                        g_gaussian_2d[tid.x].position.y >= 0.0 &&
-                       g_gaussian_2d[tid.x].position.y <= 1.0;
+                       g_gaussian_2d[tid.x].position.y <= 1.0 &&
+                       g_gaussian_2d[tid.x].position.z > 0;
 }
 
 // TODO: Calculate the g_cull_prefix using parallel prefix sum.
