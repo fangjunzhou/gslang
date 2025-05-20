@@ -183,4 +183,9 @@ public struct Gaussian2D : IDifferentiable {
     float val = -0.5 * dot(diff, mul(this.cachedInvCov, diff));
     return this.opacity * this.color * this.cachedNorm * exp(val);
   }
+
+  public Tuple<float2, float2> boundingBox() {
+    // TODO: Implement 2D gaussian bounding box calculation.
+    return Tuple<float2, float2>(float2(0, 0), float2(1, 1));
+  }
 };

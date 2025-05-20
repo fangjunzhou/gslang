@@ -14,14 +14,12 @@ public struct Camera {
   // Rotation matrix in affine viewing transform.
   property W : float3x3 {
     [Differentiable]
-    [NoDiffThis]
     get { return quat.asRotMat(this._rotation); }
   }
 
   // Trnslation vector in affine viewing transform.
   property d : float3 {
     [Differentiable]
-    [NoDiffThis]
     get { return this._translation; }
   }
 
@@ -37,7 +35,6 @@ public struct Camera {
   // @param p The point in world space.
   // @return The point in view space.
   [Differentiable]
-  [NoDiffThis]
   float3 toView(float3 p) { return mul(this.W, p) + this.d; }
 
   // Convert a point in view space to ray space.
