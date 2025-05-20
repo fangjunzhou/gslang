@@ -10,10 +10,13 @@ StructuredBuffer<Gaussian3D> g_gaussian_3d;
 // Gaussian point cloud in screen space.
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d;
 // Culled 2D gaussian point cloud in screen space.
-// TODO: Use parallel prefix sum.
-RWStructuredBuffer<bool> g_cull_flag;
-RWStructuredBuffer<uint> g_cull_prefix;
+RWStructuredBuffer<int> g_cull_flag;
+RWStructuredBuffer<int> g_cull_prefix;
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d_culled;
+// Gaussian tile.
+RWStructuredBuffer<int> num_tile;
+RWStructuredBuffer<int> num_tile_prefix;
+RWStructuredBuffer<Tuple<uint64_t, uint>> gaussian_table;
 
 // Render target.
 RWTexture2D<float4> g_render_target;
