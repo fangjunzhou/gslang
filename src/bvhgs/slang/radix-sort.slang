@@ -1,19 +1,11 @@
 module radix_sort;
 
 struct RadixState {
-  uint bitPerPass;
+  uint shift;
   RWStructuredBuffer<Tuple<uint64_t, uint>> src;
   RWStructuredBuffer<Tuple<uint64_t, uint>> dst;
   RWStructuredBuffer<uint> hist;
   RWStructuredBuffer<uint> offs;
-
-  property radix : uint64_t {
-    get { return 1 << this.bitPerPass; }
-  }
-
-  property mask : uint64_t {
-    get { return this.radix - 1; }
-  }
 };
 
 [shader("compute")]
