@@ -22,4 +22,5 @@ RWStructuredBuffer<Tuple<uint64_t, uint>> gaussian_table;
 RWTexture2D<float4> g_render_target;
 
 __include "./renderer/projection.slang";
+__include "./renderer/tile.slang";
 __include "./renderer/rasterizer.slang";
