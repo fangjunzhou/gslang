@@ -6,7 +6,6 @@ implementing "../renderer.slang";
 void project(uint3 tid: SV_DispatchThreadID) {
   // Project the 3D Gaussian to screen space.
   g_gaussian_2d[tid.x] = g_camera.toGaussian2D(g_gaussian_3d[tid.x]);
-  g_gaussian_2d[tid.x] = g_camera.toScreenSpace(g_gaussian_2d[tid.x]);
   // Cull the 2D Gaussian to the viewing frustum.
   // TODO: Reject Gaussians based on its intersection with viewing frustum.
   g_cull_flag[tid.x] = g_gaussian_2d[tid.x].position.x >= 0.0 &&

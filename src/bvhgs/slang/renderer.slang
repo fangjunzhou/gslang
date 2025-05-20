@@ -7,9 +7,9 @@ import gaussian;
 Camera g_camera;
 // Gaussian point cloud in world space.
 StructuredBuffer<Gaussian3D> g_gaussian_3d;
-// Gaussian point cloud in ray space.
+// Gaussian point cloud in screen space.
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d;
-// Culled 2D gaussian point cloud in ray space.
+// Culled 2D gaussian point cloud in screen space.
 // TODO: Use parallel prefix sum.
 RWStructuredBuffer<bool> g_cull_flag;
 RWStructuredBuffer<uint> g_cull_prefix;
