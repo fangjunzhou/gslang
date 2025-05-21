@@ -14,6 +14,8 @@ RWStructuredBuffer<int> g_cull_flag;
 RWStructuredBuffer<int> g_cull_prefix;
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d_culled;
 // Gaussian tile.
+static const uint2 TILE_SHAPE = uint2(16, 16);
+static const uint TILE_RADIX = 1 << 8;
 RWStructuredBuffer<int> g_num_tile;
 RWStructuredBuffer<int> g_num_tile_prefix;
 RWStructuredBuffer<Tuple<uint64_t, uint>> g_gaussian_table;
