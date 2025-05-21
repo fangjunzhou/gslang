@@ -2,59 +2,35 @@ import numpy as np
 import slangpy as spy
 import pytest
 from bvhgs import device
+from bvhgs.prefix_sum import prefix_sum
+from typing import cast
 
-def test_prefix_sum():
-    module = device.load_module("prefix-sum.slang")
-    program = device.link_program(
-        [module],
-        [module.entry_point("wave_prefix_sum")]
-    )
-    kernel = device.create_compute_kernel(program)
+@pytest.fixture(params=[1, 2, 16, 64, 65, 96, 32 * 32 + 1, 32 * 32, 32 * 64 + 5, 32 * 32 * 32 + 1, 1024 * 1024, 1024 * 2048 + 5])
+def input_range(request):
+    """Fixture to provide different input ranges for the test."""
+    return request.param
 
+def test_prefix_sum(input_range):
+
+    #input_data = list(range(0, input_range))
+    #random 0 and 1 in input_data
+    input_data = np.random.randint(0, 2, size=input_range).tolist()
     
-    input_data = list(range(1, 65))
-    n = len(input_data)
-
+    actual = prefix_sum(input_data)
+    # module = device.load_module("prefix-sum.slang")
+    # prog = device.link_program(
+    #     [module],
+    #     [module.entry_point("wave_prefix_sum")]
+    # ) 
+    # dst_param = prog.reflection.wave_prefix_sum.dst
     
-    src_buf = device.create_buffer(
-        element_count=n,
-        struct_type=program.reflection.src,
-        usage=spy.BufferUsage.shader_resource,
-    )
-    src_cursor = spy.BufferCursor(
-        program.reflection.src.type_layout.element_type_layout,
-        src_buf
-    )
-    for i, v in enumerate(input_data):
-        src_cursor[i].write(int(v))
-    src_cursor.apply()
+    # cursor = spy.BufferCursor(
+    #     dst_param.type_layout.element_type_layout,
+    #     dst_buf
+    # )
+    # actual = [cast(int, cursor[i].read()) for i in range(input_range)]
+
 
    
-    dst_buf = device.create_buffer(
-        element_count=n,
-        struct_type=program.reflection.dst,
-        usage=(
-            spy.BufferUsage.shader_resource
-            | spy.BufferUsage.unordered_access
-        ),
-    )
-
-    # 5) Dispatch the compute shader
-    kernel.dispatch(
-        thread_count=[n, 1, 1],
-        vars={
-            "src": src_buf,
-            "dst": dst_buf
-        }
-    )
-
-    
-    dst_cursor = spy.BufferCursor(
-        program.reflection.dst.type_layout.element_type_layout,
-        dst_buf
-    )
-    actual = [dst_cursor[i].read() for i in range(n)]
-
-    # 7) Verify against NumPy’s cumsum
     expected = np.cumsum(input_data).tolist()
     assert actual == expected, f"prefix_sum failed: got {actual}, expected {expected}"

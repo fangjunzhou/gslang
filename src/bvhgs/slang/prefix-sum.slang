@@ -1,41 +1,57 @@
 module prefix_sum;
 
-groupshared int partial[2];
+static const uint WAVE = 32;
+
+/* ------------ Kernel 1  :  in-wave scan + write partial sums ------------ */
 [shader("compute")]
-[numthreads(64, 1, 1)]
-void wave_prefix_sum(uint tid: SV_DispatchThreadID, StructuredBuffer<int> src,
-                RWStructuredBuffer<int> dst, uniform uint depth) {
-  
-  uint idx = tid.x;
-  int val = src[idx];
+[numthreads(WAVE, 1, 1)]
+void wave_scan(
+    uint3 gtid: SV_DispatchThreadID,
+    StructuredBuffer<uint> src,
+    RWStructuredBuffer<uint> dst,
+    RWStructuredBuffer<uint> partial,
+    uniform uint n){
 
-  
-  uint laneId = WaveGetLaneIndex(); // Get lane index within the current wave (0–31)
-  uint waveSize = WaveGetLaneCount();  // (should be 32)
-  uint waveIndex = idx / waveSize;  // (0 or 1 for 64 threads)
+    uint idx = gtid.x;
 
-  int sumExcl = WavePrefixSum(val);
-  int inWaveIncl = sumExcl + val;
+    uint val = (idx < n) ? src[idx] : 0u;
 
-  // Let last lane in each wave store its wave’s total into partial[]
-  if (laneId == waveSize - 1){
-    partial[waveIndex] = inWaveIncl;
-  }
+    uint excl = WavePrefixSum(val);
+    uint incl = excl + val;
 
- 
-  GroupMemoryBarrierWithGroupSync();
+    // Store inclusive prefix sum for valid elements
+    if (idx < n) dst[idx] = incl;
 
-  // Only lanes 0 and 1 of wave 0 need to scan partial[0..1]
-  if (waveIndex == 0 && laneId < 2){
-    int p = partial[laneId];
-    int pExcl = WavePrefixSum(p);
-    partial[laneId] = pExcl + p; 
-  }
+    // Lane (WAVE-1) writes the sum of this wave to "partial"
+    if (WaveGetLaneIndex() == WAVE - 1){
+        uint blockIdx = idx / WAVE;
+        partial[blockIdx] = incl;
+    }
+}
 
- 
-  GroupMemoryBarrierWithGroupSync();
+[shader("compute")]
+[numthreads(WAVE, 1, 1)]
+void add_offset(
+    uint3 gtid: SV_DispatchThreadID,
+    RWStructuredBuffer<uint> dst,
+    StructuredBuffer<uint> offset,
+    uniform uint n){
+    uint idx = gtid.x;
+    if (idx >= n) return;
 
-  // Threads in wave 0 have no offset; wave 1 adds partial[0]
-  int groupOffset = (waveIndex > 0) ? partial[waveIndex - 1] : 0;
-  dst[idx] = inWaveIncl + groupOffset;;
+    uint blockIdx = idx / WAVE;
+    dst[idx] += offset[blockIdx];
+}
+
+[numthreads(WAVE, 1, 1)]
+void compute_offsets(
+    uint3 gtid: SV_DispatchThreadID,
+                     StructuredBuffer<uint> partial,
+                     RWStructuredBuffer<uint> offsets,
+    uniform uint blocks)
+{
+  uint idx = gtid.x;
+  if (idx >= blocks) return;
+  // exclusive
+  offsets[idx] = (idx == 0) ? 0u : partial[idx - 1];
 }
