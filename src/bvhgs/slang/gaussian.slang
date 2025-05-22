@@ -1,8 +1,11 @@
 module gaussian;
+
 import math;
+import bounding_box;
 
 static const float PI = 3.14159265358979323846;
 static const float EPS = 1e-6;
+
 static const float C0 = sqrt(3.0 / PI);
 static const float C1 = sqrt(15.0 / PI);
 static const float C2 = sqrt(5.0 / PI);
@@ -11,6 +14,8 @@ static const float C4 = sqrt(105.0 / PI);
 static const float C5 = sqrt(21.0 / (2.0 * PI));
 static const float C6 = sqrt(7.0 / PI);
 static const int SH_COUNT = 15;
+
+static const float BBOX_SIZE = 3;
 
 public struct Gaussian3D : IDifferentiable {
   public float3 position;
@@ -40,11 +45,11 @@ public struct Gaussian3D : IDifferentiable {
     this.color = color;
     this.opacity = opacity;
   }
-
+  [Differentiable]
   public float3 scaleExp() { return exp(this.scale); }
-
+  [Differentiable]
   public float3 colorSig() { return utils::sigmoid3(this.color); }
-
+  [Differentiable]
   public float opacitySig() { return utils::sigmoid(this.opacity); }
 
   [Differentiable]
@@ -55,7 +60,7 @@ public struct Gaussian3D : IDifferentiable {
                           float3(0, 0, scaleExp.z));
     return mul(R, mul(S, transpose(S)) * transpose(R));
   }
-
+  [Differentiable]
   private float3x3 inv3x3(float3x3 m) {
     float3 c0 = m[0];
     float3 c1 = m[1];
@@ -67,7 +72,7 @@ public struct Gaussian3D : IDifferentiable {
     float det = dot(c0, adj0);
     return float3x3(adj0, adj1, adj2) / det;
   }
-
+  [Differentiable]
   public float4 eval(float3 pos, float3 dir) {
     float3 d = pos - this.position;
     float3x3 covInv = inv3x3(covariance());
@@ -176,7 +181,6 @@ public struct Gaussian2D : IDifferentiable {
   // Evaluate the Gaussian at a given point in normalized device coordinates.
   [Differentiable]
   public float3 eval(float2 uv) {
-    // TODO: Implement Gaussian2D evaluation.
     // opacity * color * (1/(2pi*sqrt(det(cov)))) * exp(-0.5 * (uv - position)^T
     // * inv(cov) * (uv - position))
     float2 diff = uv - this.position.xy;
@@ -184,8 +188,35 @@ public struct Gaussian2D : IDifferentiable {
     return this.opacity * this.color * this.cachedNorm * exp(val);
   }
 
-  public Tuple<float2, float2> boundingBox() {
-    // TODO: Implement 2D gaussian bounding box calculation.
-    return Tuple<float2, float2>(float2(0, 0), float2(1, 1));
+  // Get the bounding box of a 2D Gaussian.
+  // @return A tuple containing the minimum and maximum coordinates of the
+  // bounding box.
+  public BoundingBox2D boundingBox() {
+    // Get the eigenvalues and eigenvectors of the covariance matrix.
+    linalg.eigen2x2 eig = linalg.eigen(this.covariance);
+    float2 eigenVals = eig.eigenvalues;
+    float2x2 eigenVecs = eig.eigenvectors;
+    // Convert to semi-axes.
+    eigenVecs[0] = normalize(eigenVecs[0]) * sqrt(eigenVals.x) * BBOX_SIZE;
+    eigenVecs[1] = normalize(eigenVecs[1]) * sqrt(eigenVals.y) * BBOX_SIZE;
+
+    // Appriximate the bounding box of the Gaussian with four axis-aligned
+    // rectangles.
+    float2[4] axis = { eigenVecs[0], eigenVecs[1], -eigenVecs[0],
+                       -eigenVecs[1] };
+    for (int i = 0; i < 4; ++i) {
+      axis[i] = this.position.xy + axis[i];
+    }
+    // Calculate the bounding box.
+    float2 bMin = axis[0];
+    float2 bMax = axis[0];
+    for (int i = 1; i < 4; ++i) {
+      bMin.x = min(bMin.x, axis[i].x);
+      bMin.y = min(bMin.y, axis[i].y);
+      bMax.x = max(bMax.x, axis[i].x);
+      bMax.y = max(bMax.y, axis[i].y);
+    }
+    // Return the bounding box as a tuple.
+    return BoundingBox2D(bMin, bMax);
   }
 };
