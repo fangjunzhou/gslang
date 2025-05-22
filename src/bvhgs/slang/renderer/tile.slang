@@ -45,7 +45,7 @@ void buildGaussianTable(uint tid: SV_DispatchThreadID) {
       // Sort key.
       uint64_t sortKey = (uint64_t(tileId) << 32) | depth;
       // Add the gaussian to the table.
-      g_gaussian_table[tableIdx] = Tuple<uint64_t, uint>(tileId, depth);
+      g_gaussian_table[tableIdx] = Tuple<uint64_t, uint>(sortKey, tid);
       tableIdx++;
     }
   }
