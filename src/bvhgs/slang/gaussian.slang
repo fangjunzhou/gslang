@@ -200,7 +200,7 @@ public struct Gaussian2D : IDifferentiable {
     eigenVecs[0] = normalize(eigenVecs[0]) * sqrt(eigenVals.x) * BBOX_SIZE;
     eigenVecs[1] = normalize(eigenVecs[1]) * sqrt(eigenVals.y) * BBOX_SIZE;
 
-    // Appriximate the bounding box of the Gaussian with four axis-aligned
+    // Approximate the bounding box of the Gaussian with four axis-aligned
     // rectangles.
     float2[4] axis = { eigenVecs[0], eigenVecs[1], -eigenVecs[0],
                        -eigenVecs[1] };
