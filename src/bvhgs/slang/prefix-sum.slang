@@ -34,24 +34,12 @@ void wave_scan(
 void add_offset(
     uint3 gtid: SV_DispatchThreadID,
     RWStructuredBuffer<uint> dst,
-    StructuredBuffer<uint> offset,
+    StructuredBuffer<uint> partial,
     uniform uint n){
     uint idx = gtid.x;
     if (idx >= n) return;
 
     uint blockIdx = idx / WAVE;
-    dst[idx] += offset[blockIdx];
-}
-
-[numthreads(WAVE, 1, 1)]
-void compute_offsets(
-    uint3 gtid: SV_DispatchThreadID,
-                     StructuredBuffer<uint> partial,
-                     RWStructuredBuffer<uint> offsets,
-    uniform uint blocks)
-{
-  uint idx = gtid.x;
-  if (idx >= blocks) return;
-  // exclusive
-  offsets[idx] = (idx == 0) ? 0u : partial[idx - 1];
+    uint offset = (blockIdx == 0) ? 0u : partial[blockIdx - 1];
+    dst[idx] += offset;
 }

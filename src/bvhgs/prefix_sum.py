@@ -78,25 +78,13 @@ def prefix_sum(data: list[int]) -> list[int]:
         cur_dst = partial
         length = blocks
 
-    prog_compute = device.link_program([mod], [mod.entry_point("compute_offsets")])
-    k_compute = device.create_compute_kernel(prog_compute)
-    
+
     for partial, blocks, dst_buf, length in reversed(level_info): #example: start from level 2
         
-        # transform to exclusive scan
+        # implicitly transform to exclusive scan
         # example: layer2: inclusive = [55], offsets = [0] (exclusive)
         # example: layer1: inclusive = [10, 36, 55], offsets = [0, 10, 36]
-        off_buf = device.create_buffer(
-            element_count=blocks,
-            struct_type=prog_add.reflection.add_offset.offset,
-            usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
-        )
-        k_compute.dispatch(
-            thread_count=[blocks, 1, 1],
-            partial=partial,
-            offsets=off_buf,
-            blocks=blocks,
-        )
+
 
         # dispatch add_offset kernel
         # example: layer 2: [55] + 0 -> [55]
@@ -104,7 +92,7 @@ def prefix_sum(data: list[int]) -> list[int]:
         k_add.dispatch(
             thread_count=[blocks * WAVE, 1, 1],
             dst=dst_buf,
-            offset=off_buf,
+            partial=partial,
             n=length,
         )
 
