@@ -4,9 +4,9 @@ implementing "../renderer.slang";
 [numthreads(64, 1, 1)]
 void computeTile(uint tid: SV_DispatchThreadID) {
   // Get the bounding box of the gaussian.
-  Tuple<float2, float2> bbox = g_gaussian_2d_culled[tid].boundingBox();
-  float2 bMin = bbox._0;
-  float2 bMax = bbox._1;
+  BoundingBox2D bbox = g_gaussian_2d_culled[tid].boundingBox();
+  float2 bMin = bbox.min;
+  float2 bMax = bbox.max;
   // Tile size.
   float2 tileSize = float2(1, 1) / float2(TILE_SHAPE);
   // Starting and ending tile.
