@@ -56,7 +56,7 @@ public eigen2x2 eigen(float2x2 m) {
 
   float2x2 eigenvectors = float2x2(v1, v2);
 
-  return eigen2x2(float2(lambda1, lambda2), transpose(eigenvectors));
+  return eigen2x2(float2(lambda1, lambda2), eigenvectors);
 }
 
 }

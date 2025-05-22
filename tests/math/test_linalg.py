@@ -56,12 +56,12 @@ def test_eigen2x2(buffer_size: int):
         )
 
         # Test eigenvectors.
-        e0 = eigenvectors_spy_np[:, 0]
+        e0 = eigenvectors_spy_np[0, :].T
         mat_e0 = mat[i, :, :] @ e0
         logger.debug(f"mat_e0: {mat_e0}")
         logger.debug(f"eigenvalues_spy.x * e0: {eigenvalues_spy.x * e0}")
         assert np.allclose(eigenvalues_spy.x * e0, mat_e0, atol=1e-4)
-        e1 = eigenvectors_spy_np[:, 1]
+        e1 = eigenvectors_spy_np[1, :].T
         mat_e1 = mat[i, :, :] @ e1
         logger.debug(f"mat_e1: {mat_e1}")
         logger.debug(f"eigenvalues_spy.y * e1: {eigenvalues_spy.y * e1}")
