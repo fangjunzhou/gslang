@@ -10,6 +10,13 @@ device = spy.create_device(
 )
 logger.info(f"Slang device created: {device}")
 
-camera_module = spy.Module.load_from_file(device, "camera.slang")
-gaussian_module = spy.Module.load_from_file(device, "gaussian.slang")
 math_module = spy.Module.load_from_file(device, "math.slang")
+bounding_box_module = spy.Module.load_from_file(device, "bounding-box.slang")
+
+gaussian_module = spy.Module.load_from_file(
+    device, "gaussian.slang", link=[math_module, bounding_box_module]
+)
+
+camera_module = spy.Module.load_from_file(
+    device, "camera.slang", link=[math_module, gaussian_module]
+)
