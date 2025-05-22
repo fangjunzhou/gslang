@@ -285,15 +285,6 @@ def test_gaussian2d_bounding_box(buffer_shape: Tuple[int]):
     # Scatter Gaussian positions.
     NUM_SAMPLES = 4096
     for i in range(buffer_shape[0]):
-        # Draw the gaussian to a plot.
-        fig, ax = plt.subplots()
-        ax.set_title("Gaussian2D Bounding Box")
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_aspect("equal")
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-
         mean = position[i]
         cov = covariance[i]
         opa = opacity[i]
@@ -303,28 +294,11 @@ def test_gaussian2d_bounding_box(buffer_shape: Tuple[int]):
             mean=mean[:2], cov=cov, size=NUM_SAMPLES
         )
 
-        # Plot the samples.
-        ax.scatter(
-            samples[:, 0], samples[:, 1], color=color[i], alpha=opa / 16, s=1
-        )
-
-        # Draw the bounding box with the same color as the Gaussian.
         bbox = cursor[i].read()
         min = bbox["min"]
         max = bbox["max"]
         width = max.x - min.x
         height = max.y - min.y
-        rect = mpatches.Rectangle(
-            (min.x, min.y),
-            width,
-            height,
-            linewidth=1,
-            edgecolor=color[i],
-            facecolor="none",
-        )
-        ax.add_patch(rect)
-
-        plt.savefig(f".tests/gaussian2d_bbox_{i}.png")
 
         # Calculate the proportion of samples inside the bounding box.
         inside = np.logical_and(
@@ -341,3 +315,35 @@ def test_gaussian2d_bounding_box(buffer_shape: Tuple[int]):
         assert (
             proportion_inside > 0.9
         ), f"Proportion of samples inside bounding box for Gaussian {i} is too low."
+
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            # Draw the gaussian to a plot.
+            fig, ax = plt.subplots()
+            ax.set_title("Gaussian2D Bounding Box")
+            ax.set_xlabel("X")
+            ax.set_ylabel("Y")
+            ax.set_aspect("equal")
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+
+            # Plot the samples.
+            ax.scatter(
+                samples[:, 0],
+                samples[:, 1],
+                color=color[i],
+                alpha=opa / 16,
+                s=1,
+            )
+
+            # Draw the bounding box with the same color as the Gaussian.
+            rect = mpatches.Rectangle(
+                (min.x, min.y),
+                width,
+                height,
+                linewidth=1,
+                edgecolor=color[i],
+                facecolor="none",
+            )
+            ax.add_patch(rect)
+
+            plt.savefig(f".tests/gaussian2d_bbox_{i}.png")
