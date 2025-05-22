@@ -8,13 +8,14 @@ from typing import cast
 WAVE = 32
 
 #parallel O(log_32(n)), space complexity O(n/32 + (n/32)^2 + n/32^3 + ... + 1) = O(n)
-# dispatch: 3log_32(n)
-def prefix_sum(data: list[int]) -> list[int]:
+# dispatch: 2log_32(n)
+def prefix_sum(src: spy.Buffer) -> spy.Buffer:
     """
     Hierarchical parallel scan on the GPU.
     Returns a Python list with the prefix sums.
     """
-    n = len(data)
+    
+    n = src.size // src.struct_size
 
     mod = device.load_module("prefix-sum.slang")
     prog_scan = device.link_program([mod], [mod.entry_point("wave_scan")])
@@ -23,15 +24,6 @@ def prefix_sum(data: list[int]) -> list[int]:
     k_add = device.create_compute_kernel(prog_add)
 
 
-    src = device.create_buffer(
-        element_count=n,
-        struct_type=prog_scan.reflection.wave_scan.src,
-        usage=spy.BufferUsage.shader_resource,
-    )
-    cur = spy.BufferCursor(prog_scan.reflection.wave_scan.src.type_layout.element_type_layout, src)
-    for i, v in enumerate(data):
-        cur[i].write(int(v))
-    cur.apply()
 
     # dst0 will hold the final result
     dst0 = device.create_buffer(
@@ -84,8 +76,6 @@ def prefix_sum(data: list[int]) -> list[int]:
         # implicitly transform to exclusive scan
         # example: layer2: inclusive = [55], offsets = [0] (exclusive)
         # example: layer1: inclusive = [10, 36, 55], offsets = [0, 10, 36]
-
-
         # dispatch add_offset kernel
         # example: layer 2: [55] + 0 -> [55]
         # example: layer 1: [1, 3, 6, 10] + [0] -> [1, 3, 6, 10]; [5, 11, 18, 26] + [10] -> [15, 21, 28, 36]; [9, 19] + [36] -> [45, 55]
@@ -96,8 +86,5 @@ def prefix_sum(data: list[int]) -> list[int]:
             n=length,
         )
 
-    dst_cur = spy.BufferCursor(
-        prog_scan.reflection.wave_scan.dst.type_layout.element_type_layout,
-        dst0,
-    )
-    return [cast(int, dst_cur[i].read()) for i in range(n)]
+
+    return dst0
