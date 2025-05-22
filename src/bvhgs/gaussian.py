@@ -27,13 +27,15 @@ class GaussianCloud:
     num_gaussians: int
 
     def __init__(self, size: int) -> None:
-        self.positions = np.random.rand(size, 3).astype(np.float32)
+        self.positions = np.random.randn(size, 3).astype(np.float32)
         self.rotations = np.random.rand(size, 4).astype(np.float32)
-        self.scales = np.random.rand(size, 3).astype(np.float32)
+        # Normalize the rotations
+        self.rotations /= np.linalg.norm(self.rotations, axis=1, keepdims=True)
+        self.scales = np.random.randn(size, 3).astype(np.float32)
 
-        self.colors = np.random.rand(size, 3).astype(np.float32)
-        self.opacities = np.random.rand(size, 1).astype(np.float32)
-        self.spherical_harmonics = np.random.rand(size, 15, 3).astype(
+        self.colors = np.random.randn(size, 3).astype(np.float32)
+        self.opacities = np.random.randn(size, 1).astype(np.float32)
+        self.spherical_harmonics = np.random.randn(size, 15, 3).astype(
             np.float32
         )
 
