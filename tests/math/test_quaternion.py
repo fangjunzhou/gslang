@@ -10,6 +10,7 @@ import bvhgs
 from bvhgs import math_module
 
 
+np.random.seed(0)
 logger = logging.getLogger(__name__)
 
 

@@ -2,6 +2,10 @@ import pytest
 import numpy as np
 from bvhgs import math_module
 
+
+np.random.seed(0)
+
+
 def numpy_sigmoid(x):
     return 1.0 / (1.0 + np.exp(-x))
 
@@ -16,6 +20,7 @@ def sigmoid():
 @pytest.fixture(params=[1, 16, 128])
 def buffer_size(request):
     return request.param
+
 
 def test_sigmoid_scalar_elementwise(buffer_size: int, sigmoid):
     x = np.random.randn(buffer_size).astype(np.float32)
@@ -50,8 +55,8 @@ def test_sigmoid_values(sigmoid):
         x = np.array([inp], dtype=np.float32)
         y = sigmoid(x, _result="numpy")[0]
         assert pytest.approx(expected, abs=1e-4) == y
-        
-        
+
+
 @pytest.fixture
 def sigmoid3():
     fn = math_module.find_function("utils.sigmoid3")
@@ -69,6 +74,6 @@ def test_sigmoid3(buffer_size, sigmoid3):
     x = np.random.randn(buffer_size, 3).astype(np.float32)
     y = sigmoid3(x, _result="numpy")
     y_ref = 1.0 / (1.0 + np.exp(-x))
-    
+
     assert y.shape == x.shape
     assert np.allclose(y, y_ref, atol=1e-4)
