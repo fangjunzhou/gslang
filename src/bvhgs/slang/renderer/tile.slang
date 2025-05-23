@@ -12,6 +12,11 @@ void computeTile(uint tid: SV_DispatchThreadID) {
   // Starting and ending tile.
   uint2 minTile = uint2(bMin / tileSize);
   uint2 maxTile = uint2(bMax / tileSize);
+  // Clamp the tile id to the tile shape.
+  minTile.x = max(minTile.x, 0);
+  minTile.y = max(minTile.y, 0);
+  maxTile.x = min(maxTile.x, TILE_SHAPE.x);
+  maxTile.y = min(maxTile.y, TILE_SHAPE.y);
   g_num_tile[tid] = (maxTile.x - minTile.x) * (maxTile.y - minTile.y);
 }
 
