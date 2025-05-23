@@ -17,6 +17,7 @@ def prefix_sum(src: spy.Buffer) -> spy.Buffer:
 
     n = src.size // src.struct_size
 
+    # TODO: Load the module and link the program outside the function.
     mod = device.load_module("prefix-sum.slang")
     prog_scan = device.link_program([mod], [mod.entry_point("wave_scan")])
     prog_add = device.link_program([mod], [mod.entry_point("add_offset")])
