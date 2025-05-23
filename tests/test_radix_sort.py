@@ -1,11 +1,15 @@
 # tests/test_radix_sort.py
 
+import logging
 from typing import Dict, Tuple, cast
 import numpy as np
 import pytest
 import slangpy as spy
 from bvhgs import device
 from bvhgs.radix_sort import radix_sort
+
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(params=[1, 16, 64, 255, 256, 257])
@@ -34,7 +38,15 @@ def test_radix_sort(n):
         src_cur[i].write({"key": int(k), "val": int(v)})
     src_cur.apply()
 
+    logger.info(
+        f"src_buf: {src_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
+    )
+
     sorted_buf, hist_buf = radix_sort(src_buf)
+
+    logger.info(
+        f"sorted_buf: {sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
+    )
 
     dst_cur = spy.BufferCursor(elem_layout, sorted_buf)
     out_keys, out_vals = [], []
@@ -43,10 +55,12 @@ def test_radix_sort(n):
         out_keys.append(kv["key"])
         out_vals.append(kv["val"])
 
-    assert sorted(out_keys) == sorted(keys), "Key mismatch"
+    logger.info(f"out_keys: {out_keys[:8]}")
+
+    assert sorted(out_keys) == sorted(keys.tolist()), "Key mismatch"
     assert out_keys == sorted(out_keys), "Keys not sorted"
 
-    hist_np = hist_buf.to_numpy()
+    hist_np = hist_buf.to_numpy().view(np.uint32)
     assert hist_np.sum() == n, "Histogram total count wrong"
     for bin_val in range(hist_np.shape[0]):
         expect = np.count_nonzero((keys & 0xFF) == bin_val)

@@ -13,6 +13,7 @@ public struct KVPair {
 struct RadixState {
   uint shift;
   uint mask;
+  uint bufSize;
   RWStructuredBuffer<KVPair> src;
   RWStructuredBuffer<KVPair> dst;
   RWStructuredBuffer<Atomic<uint>> hist;
@@ -22,15 +23,15 @@ struct RadixState {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void clearHist(uint tid: SV_DispatchThreadID, RadixState state) {
-  if (tid <= state.mask) {
-    state.hist[tid].store(0);
-    state.offs[tid].store(0);
-  }
+  if (tid >= state.bufSize) return;
+  state.hist[tid].store(0);
+  state.offs[tid].store(0);
 }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void buildHist(uint tid: SV_DispatchThreadID, RadixState state) {
+  if (tid >= state.bufSize) return;
   uint64_t key = state.src[tid].key;
   uint digit = uint((key >> state.shift) & state.mask);
   state.hist[digit].add(1);
@@ -39,9 +40,10 @@ void buildHist(uint tid: SV_DispatchThreadID, RadixState state) {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void scatter(uint tid: SV_DispatchThreadID, RadixState state) {
+  if (tid >= state.bufSize) return;
   KVPair kv = state.src[tid];
   uint digit = uint((kv.key >> state.shift) & state.mask);
-  uint newOffset = state.offs[digit].add(1);
-  state.dst[newOffset - 1] = kv;
+  uint offs = state.offs[digit].add(1);
+  state.dst[offs] = kv;
 }
 

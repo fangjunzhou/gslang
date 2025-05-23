@@ -1,7 +1,12 @@
+import logging
 from typing import Optional, Tuple
 import numpy as np
 import slangpy as spy
 from bvhgs import device
+
+
+np.random.seed(0)
+logger = logging.getLogger(__name__)
 
 
 def radix_sort(
@@ -48,27 +53,44 @@ def radix_sort(
         state = {
             "shift": shift,
             "mask": mask,
+            "bufSize": n,
             "src": src_buf,
             "dst": dst_buf,
             "hist": hist_buf,
             "offs": offs_buf,
         }
 
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(f"State: {state}")
+
         k_clear.dispatch(
             thread_count=[buckets, 1, 1],
             state=state,
         )
+
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(
+                f"Cleared histogram: {hist_buf.to_numpy().view(np.uint32)}"
+            )
+            logger.debug(
+                f"Histogram shape: {hist_buf.to_numpy().view(np.uint32).shape}"
+            )
 
         k_build.dispatch(
             thread_count=[n, 1, 1],
             state=state,
         )
 
-        hist_np = hist_buf.to_numpy()
+        hist_np = hist_buf.to_numpy().view(np.uint32)
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(f"Histogram: {hist_np}")
+            logger.debug(f"Histogram sum: {hist_np.sum()}")
         offs_np = np.empty_like(hist_np)
         offs_np[0] = 0
         offs_np[1:] = np.cumsum(hist_np[:-1])
-        offs_buf.copy_from_numpy(offs_np)
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(f"Offsets: {offs_np}")
+        offs_buf.copy_from_numpy(offs_np.astype(np.uint32))
 
         k_scatter.dispatch(
             thread_count=[n, 1, 1],
