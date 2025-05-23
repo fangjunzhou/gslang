@@ -11,8 +11,8 @@ StructuredBuffer<Gaussian3D> g_gaussian_3d;
 // Gaussian point cloud in screen space.
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d;
 // Culled 2D gaussian point cloud in screen space.
-RWStructuredBuffer<uint> g_cull_flag;
-RWStructuredBuffer<uint> g_cull_prefix;
+RWStructuredBuffer<uint> g_inside_flag;
+RWStructuredBuffer<uint> g_inside_offset;
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d_culled;
 // Gaussian tile.
 static const uint2 TILE_SHAPE = uint2(16, 16);
