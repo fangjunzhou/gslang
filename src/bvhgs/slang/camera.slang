@@ -11,14 +11,19 @@ public struct Camera {
   no_diff uint2 _sensorSize;
   no_diff float _focalLength;
 
+  no_diff float _nearPlane;
+  no_diff float _farPlane;
+
   public __init(float4 rotation = float4(0, 0, 0, 1),
-                  float3 translation = float3(0, 0, 0),
-                  uint2 sensorSize = uint2(1920, 1080),
-                  float focalLength = 100.0) {
+                float3 translation = float3(0, 0, 0),
+                uint2 sensorSize = uint2(1920, 1080), float focalLength = 100.0,
+                float nearPlane = 0.1, float farPlane = 1000.0) {
     this._rotation = rotation;
     this._translation = translation;
     this._sensorSize = sensorSize;
     this._focalLength = focalLength;
+    this._nearPlane = nearPlane;
+    this._farPlane = farPlane;
   }
 
   // Rotation matrix in affine viewing transform.
@@ -101,12 +106,21 @@ public struct Camera {
 
     // to ray space
     float3 x = this.toRay(u);
+    float depth = x.z;
+    
+    if (depth < this._nearPlane || depth > this._farPlane) {
+      return Gaussian2D(float3(0, 0, -1), float2x2(0, 0, 0, 0), float3(0, 0, 0),
+                        0);
+    }
+    
+    // normalize depth
+    depth = (depth - this._nearPlane) / (this._farPlane - this._nearPlane);
+
     float3x3 J = this.toRayJ(u);
     float3x3 Vk = mul(J, mul(Vcam, transpose(J)));
-
     float2x2 conv2d = float2x2(Vk[0][0], Vk[0][1], Vk[1][0], Vk[1][1]);
 
-    float3 s = float3(this.toScreen(x.xy), x.z);
+    float3 s = float3(this.toScreen(x.xy), depth);
     float2x2 sCov = mul(this.S, mul(conv2d, transpose(this.S)));
 
     float3 viewDir = normalize(-u);
