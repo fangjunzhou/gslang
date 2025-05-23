@@ -156,8 +156,8 @@ def test_off_screen():
         signx = 1 if np.random.rand() > 0.5 else -1
         signy = 1 if np.random.rand() > 0.5 else -1
       
-        x = signx * (np.random.rand() * 400 + 300)
-        y = signy * (np.random.rand() * 200 + 300)
+        x = signx * (np.random.rand() * 400 + 800)
+        y = signy * (np.random.rand() * 200 + 800)
         
         gaussian_cursor[i].write({
             "position": glm.vec3(x, y, 64),
@@ -168,6 +168,10 @@ def test_off_screen():
             "sh": [spy.float3(0, 0, 0) for _ in range(15)],
         })
     gaussian_cursor.apply()
+    
+
+    
+
     
 
     camera = Camera(
@@ -204,8 +208,13 @@ def test_off_screen():
         cull_flag_buf,
     )
     
+    gaussian2d_cursor = spy.BufferCursor(
+        program.reflection.g_gaussian_2d.type_layout.element_type_layout,
+        gaussian2d_buf,
+    )
+    #test bbox
     for i in range(cull_flag_cursor.element_count):
         flag = cull_flag_cursor[i].read()
-        assert flag == 0, f"Gaussian {i} is on screen, position: {gaussian_cursor[i].read()['position']}"
+        assert flag == 0, f"Gaussian {i} is on screen, position: {gaussian_cursor[i].read()}, transformed: {gaussian2d_cursor[i].read()}"
 
     
