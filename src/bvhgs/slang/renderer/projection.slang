@@ -12,7 +12,8 @@ void project(uint tid: SV_DispatchThreadID) {
                    g_gaussian_2d[tid].position.x <= 1.0 &&
                    g_gaussian_2d[tid].position.y >= 0.0 &&
                    g_gaussian_2d[tid].position.y <= 1.0 &&
-                   g_gaussian_2d[tid].position.z > 0;
+                   g_gaussian_2d[tid].position.z > 0 &&
+                    g_gaussian_2d[tid].position.z <= 1.0;
   g_cull_flag[tid] = is_inside ? 1 : 0;
 }
 

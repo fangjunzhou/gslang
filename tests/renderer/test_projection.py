@@ -7,7 +7,8 @@ import slangpy as spy
 
 from bvhgs import device
 from bvhgs import gaussian_module, camera_module
-
+from bvhgs.camera import Camera
+from pyglm import glm
 
 @pytest.fixture(params=[(1,), (4,)])
 def buffer_shape(request) -> Tuple[int]:
@@ -23,6 +24,8 @@ def make_camera(sensor_size=(800, 600), focal_length=100.0):
         translation=spy.float3(0, 0, 0),
         sensorSize=spy.uint2(*sensor_size),
         focalLength=focal_length,
+        nearPlane=0.5,
+        farPlane=1000.0,
     )
     return cam_buf
 
@@ -62,7 +65,7 @@ def test_toGaussian2D_center_and_cov(buffer_shape):
 
     W, H = 800, 600
     f = 100.0
-    Z = 1000.0
+    Z = 500.0
 
     cam = make_camera(sensor_size=(W, H), focal_length=f)
     gauss3d = make_gaussian3d(buffer_shape, position=(0.0, 0.0, Z))
@@ -74,6 +77,7 @@ def test_toGaussian2D_center_and_cov(buffer_shape):
     exp_uv = [0.5, 0.5]
     exp_cov = np.diag([(f / (W * Z)) ** 2, (f / (H * Z)) ** 2])
 
+    Z_norm = (Z - 0.5) / (1000.0 - 0.5)
     for i in range(buffer_shape[0]):
         # uv
         pos = out[i]["position"]
@@ -84,7 +88,7 @@ def test_toGaussian2D_center_and_cov(buffer_shape):
             pos_uv, exp_uv, rtol=1e-5, atol=1e-6
         ), f"uv mismatch at {i}: got {pos_uv}, expected {exp_uv}"
 
-        assert pos_z == pytest.approx(Z, rel=1e-6, abs=1e-6)
+        assert pos_z == pytest.approx(Z_norm, rel=1e-6, abs=1e-6)
 
         cov = out[i]["covariance"].to_numpy()
 
@@ -129,3 +133,79 @@ def test_toGaussian2D_offcenter(buffer_shape):
         # covariance
         eigs = np.linalg.eigvalsh(cov)
         assert np.all(eigs >= -1e-6), f"cov not PSD at {i}, eigs = {eigs}"
+
+def test_off_screen():
+    mod = device.load_module("renderer.slang")
+    program = device.link_program([mod], [])
+        
+    prog_project = device.link_program([mod], [mod.entry_point("project")])
+    k_project = device.create_compute_kernel(prog_project)
+    
+    gaussian_buf = device.create_buffer(
+        element_count=20,
+        struct_type=program.reflection.g_gaussian_3d,
+        usage=spy.BufferUsage.shader_resource,
+    )
+    gaussian_cursor = spy.BufferCursor(
+        program.reflection.g_gaussian_3d.type_layout.element_type_layout,
+        gaussian_buf,
+    )
+
+    for i in range(20):
+        #generate random offscreen gaussians
+        signx = 1 if np.random.rand() > 0.5 else -1
+        signy = 1 if np.random.rand() > 0.5 else -1
+      
+        x = signx * (np.random.rand() * 400 + 300)
+        y = signy * (np.random.rand() * 200 + 300)
+        
+        gaussian_cursor[i].write({
+            "position": glm.vec3(x, y, 64),
+            "rotation": glm.quat(0, 0, 0, 1),
+            "scale": glm.vec3(1, 1, 1),
+            "color": glm.vec3(1, 1, 1),
+            "opacity": 1.0,
+            "sh": [spy.float3(0, 0, 0) for _ in range(15)],
+        })
+    gaussian_cursor.apply()
+    
+
+    camera = Camera(
+        rotation=glm.quat(1, 0, 0, 0),
+        translation=glm.vec3(0, 0, 1),
+        sensor_size=glm.uvec2(512, 512),
+        focal_length=64
+    )
+
+    cull_flag_buf = device.create_buffer(
+        element_count=20,
+        struct_type=program.reflection.g_cull_flag,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    
+    gaussian2d_buf = device.create_buffer(
+        element_count=20,
+        struct_type=program.reflection.g_gaussian_2d,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    
+    k_project.dispatch(
+        thread_count=[20, 1, 1],
+        vars={
+            "g_camera": camera.to_slang(),
+            "g_gaussian_3d": gaussian_buf,
+            "g_gaussian_2d": gaussian2d_buf,
+            "g_cull_flag": cull_flag_buf
+        }
+    )
+        
+    cull_flag_cursor = spy.BufferCursor(
+        program.reflection.g_cull_flag.type_layout.element_type_layout,
+        cull_flag_buf,
+    )
+    
+    for i in range(cull_flag_cursor.element_count):
+        flag = cull_flag_cursor[i].read()
+        assert flag == 0, f"Gaussian {i} is on screen, position: {gaussian_cursor[i].read()['position']}"
+
+    
