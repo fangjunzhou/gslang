@@ -9,6 +9,7 @@ import matplotlib.patches as mpatches
 
 from bvhgs import device
 from bvhgs import gaussian_module
+from bvhgs.gaussian import GaussianCloud
 
 
 np.random.seed(42)
