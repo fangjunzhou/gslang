@@ -11,3 +11,7 @@ __pycache__/
 # Benchmarks
 .benchmarks
 .tests
+
+# Data
+resources/dataset
+resources/scenes
