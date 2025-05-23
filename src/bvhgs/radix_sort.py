@@ -92,10 +92,13 @@ def radix_sort(
             logger.debug(f"Offsets: {offs_np}")
         offs_buf.copy_from_numpy(offs_np.astype(np.uint32))
 
-        k_scatter.dispatch(
-            thread_count=[n, 1, 1],
-            state=state,
-        )
+        for offs, hist in zip(offs_np, hist_np):
+            k_scatter.dispatch(
+                thread_count=[n, 1, 1],
+                state=state,
+                binOffset=offs,
+                binSize=hist,
+            )
 
         src_buf, dst_buf = dst_buf, src_buf
 

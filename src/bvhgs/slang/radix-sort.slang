@@ -23,7 +23,6 @@ struct RadixState {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void clearHist(uint tid: SV_DispatchThreadID, RadixState state) {
-  if (tid >= state.bufSize) return;
   state.hist[tid].store(0);
   state.offs[tid].store(0);
 }
@@ -39,9 +38,11 @@ void buildHist(uint tid: SV_DispatchThreadID, RadixState state) {
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void scatter(uint tid: SV_DispatchThreadID, RadixState state) {
-  if (tid >= state.bufSize) return;
-  KVPair kv = state.src[tid];
+void scatter(uint tid: SV_DispatchThreadID, RadixState state,
+             uniform uint binOffset, uniform uint binSize) {
+  if (tid >= binSize) return;
+  uint idx = binOffset + tid;
+  KVPair kv = state.src[idx];
   uint digit = uint((kv.key >> state.shift) & state.mask);
   uint offs = state.offs[digit].add(1);
   state.dst[offs] = kv;
