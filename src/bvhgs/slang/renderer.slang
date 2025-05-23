@@ -21,6 +21,7 @@ RWStructuredBuffer<uint> g_num_tile;
 RWStructuredBuffer<uint> g_num_tile_prefix;
 RWStructuredBuffer<Tuple<uint64_t, uint>> g_gaussian_table;
 RWStructuredBuffer<uint> g_tile_offs;
+RWStructuredBuffer<Gaussian2D> g_gaussian_2d_sorted;
 
 // Render target.
 RWTexture2D<float4> g_render_target;

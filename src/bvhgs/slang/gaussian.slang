@@ -15,7 +15,7 @@ static const float C5 = sqrt(21.0 / (2.0 * PI));
 static const float C6 = sqrt(7.0 / PI);
 static const int SH_COUNT = 15;
 
-static const float BBOX_SIZE = 3;
+static const float BBOX_SIZE = 2.75;
 
 public struct Gaussian3D : IDifferentiable {
   public float3 position;
@@ -151,8 +151,6 @@ public struct Gaussian2D : IDifferentiable {
   public float opacity;
 
   float2x2 cachedInvCov;
-  float cachedDet;
-
 
   [Differentiable]
   public __init(float3 position = float3(0, 0, 0),
@@ -170,21 +168,18 @@ public struct Gaussian2D : IDifferentiable {
     float c = this.covariance[1][0];
     float d = this.covariance[1][1];
 
-    this.cachedDet = a * d - b * c;
-    this.cachedDet = max(this.cachedDet, EPS);
+    float det = a * d - b * c;
 
-    this.cachedInvCov = float2x2(d / this.cachedDet, -b / this.cachedDet,
-                                 -c / this.cachedDet, a / this.cachedDet);
+    this.cachedInvCov = float2x2(d / det, -b / det, -c / det, a / det);
   }
 
   // Evaluate the Gaussian at a given point in normalized device coordinates.
   [Differentiable]
-  public float3 eval(float2 uv) {
-    // opacity * color  * exp(-0.5 * (uv - position)^T
-    // * inv(cov) * (uv - position))
+  public float eval(float2 uv) {
+    // exp(-0.5 * (uv - position)^T * inv(cov) * (uv - position))
     float2 diff = uv - this.position.xy;
     float val = -0.5 * dot(diff, mul(this.cachedInvCov, diff));
-    return this.opacity * this.color  * exp(val);
+    return exp(val);
   }
 
   // Get the bounding box of a 2D Gaussian.
