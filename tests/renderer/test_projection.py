@@ -156,13 +156,13 @@ def test_off_screen():
         signx = 1 if np.random.rand() > 0.5 else -1
         signy = 1 if np.random.rand() > 0.5 else -1
       
-        x = signx * (np.random.rand() * 400 + 800)
-        y = signy * (np.random.rand() * 200 + 800)
+        x = signx * (np.random.rand() * 400 + 600)
+        y = signy * (np.random.rand() * 200 + 600)
         
         gaussian_cursor[i].write({
             "position": glm.vec3(x, y, 64),
             "rotation": glm.quat(0, 0, 0, 1),
-            "scale": glm.vec3(1, 1, 1),
+            "scale": glm.vec3(0,0,0),
             "color": glm.vec3(1, 1, 1),
             "opacity": 1.0,
             "sh": [spy.float3(0, 0, 0) for _ in range(15)],
@@ -217,4 +217,71 @@ def test_off_screen():
         flag = cull_flag_cursor[i].read()
         assert flag == 0, f"Gaussian {i} is on screen, position: {gaussian_cursor[i].read()}, transformed: {gaussian2d_cursor[i].read()}"
 
-    
+def test_near_far_culling():
+    mod = device.load_module("renderer.slang")
+    prog_project = device.link_program([mod], [mod.entry_point("project")])
+    k_project = device.create_compute_kernel(prog_project)
+
+
+    N = 3
+    g3d_buf = device.create_buffer(
+        element_count=N,
+        struct_type=prog_project.reflection.g_gaussian_3d,
+        usage=spy.BufferUsage.shader_resource,
+    )
+    g3d_cur = spy.BufferCursor(
+        prog_project.reflection.g_gaussian_3d.type_layout.element_type_layout,
+        g3d_buf,
+    )
+
+    depths = [2.0, 1200.0, 0.25]  # inside, beyond far, before near
+    for i, z in enumerate(depths):
+        g3d_cur[i].write({
+            "position": glm.vec3(0, 0, z),
+            "rotation": glm.quat(), 
+            "scale": glm.vec3(0, 0, 0),
+            "color": glm.vec3(1, 1, 1),
+            "opacity": 1.0,
+            "sh": [spy.float3(0, 0, 0)] * 15,
+        })
+    g3d_cur.apply()
+
+    g2d_buf = device.create_buffer(
+        element_count=N,
+        struct_type=prog_project.reflection.g_gaussian_2d,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    flag_buf = device.create_buffer(
+        element_count=N,
+        struct_type=prog_project.reflection.g_cull_flag,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+
+
+    cam = Camera(
+        rotation = glm.quat(),
+        translation = glm.vec3(0, 0, 0),
+        sensor_size = glm.uvec2(512, 512),
+        focal_length = 64,
+        near_plane = 0.5,
+        far_plane = 1000.0,
+    )
+
+    k_project.dispatch(
+        thread_count=[N, 1, 1],
+        vars={
+            "g_camera": cam.to_slang(),
+            "g_gaussian_3d": g3d_buf,
+            "g_gaussian_2d": g2d_buf,
+            "g_cull_flag": flag_buf,
+        }
+    )
+    flag_cur = spy.BufferCursor(
+        prog_project.reflection.g_cull_flag.type_layout.element_type_layout,
+        flag_buf,
+    )
+    flags = [flag_cur[i].read() for i in range(N)]
+
+    assert flags[0] == 1, "depth inside [near,far] should not be culled"
+    assert flags[1] == 0, "depth beyond far plane should be culled"
+    assert flags[2] == 0, "depth in front of near plane should be culled"
