@@ -50,4 +50,4 @@ void buildGaussianTable(uint tid: SV_DispatchThreadID) {
     }
   }
 }
-}
+
