@@ -176,8 +176,7 @@ public struct Gaussian2D : IDifferentiable {
   // Evaluate the Gaussian at a given point in normalized device coordinates.
   [Differentiable]
   public float eval(float2 uv) {
-    // opacity * color * (1/(2pi*sqrt(det(cov)))) * exp(-0.5 * (uv - position)^T
-    // * inv(cov) * (uv - position))
+    // exp(-0.5 * (uv - position)^T * inv(cov) * (uv - position))
     float2 diff = uv - this.position.xy;
     float val = -0.5 * dot(diff, mul(this.cachedInvCov, diff));
     return exp(val);
