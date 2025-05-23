@@ -11,7 +11,7 @@ dependencies = [
     "numpy-quaternion>=2024.0.8",
     "pyglm>=2.8.2",
     "jax>=0.6.0",
-    "pyntcloud",
+    "pyntcloud>=0.3.1",
 ]
 
 [build-system]
@@ -29,7 +29,6 @@ dev = [
 
 [tool.uv.sources]
 slangpy = { path = "external/slangpy" }
-pyntcloud = { git = "https://github.com/daavoo/pyntcloud" }
 
 [tool.black]
 line-length = 80
