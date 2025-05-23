@@ -31,7 +31,7 @@ def test_radix_sort(n):
 
     src_cur = spy.BufferCursor(elem_layout, src_buf)
     for i, (k, v) in enumerate(zip(keys, values)):
-        src_cur[i].write({"_0": int(k), "_1": int(v)})
+        src_cur[i].write({"key": int(k), "val": int(v)})
     src_cur.apply()
 
     sorted_buf, hist_buf = radix_sort(src_buf)
@@ -40,8 +40,8 @@ def test_radix_sort(n):
     out_keys, out_vals = [], []
     for i in range(n):
         kv = cast(Dict[str, int], dst_cur[i].read())
-        out_keys.append(kv["_0"])
-        out_vals.append(kv["_1"])
+        out_keys.append(kv["key"])
+        out_vals.append(kv["val"])
 
     assert sorted(out_keys) == sorted(keys), "Key mismatch"
     assert out_keys == sorted(out_keys), "Keys not sorted"
