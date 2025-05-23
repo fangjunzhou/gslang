@@ -11,10 +11,28 @@ public struct Camera {
   no_diff uint2 _sensorSize;
   no_diff float _focalLength;
 
+  public __init(float4 rotation = float4(0, 0, 0, 1),
+                  float3 translation = float3(0, 0, 0),
+                  uint2 sensorSize = uint2(1920, 1080),
+                  float focalLength = 100.0) {
+    this._rotation = rotation;
+    this._translation = translation;
+    this._sensorSize = sensorSize;
+    this._focalLength = focalLength;
+  }
+
   // Rotation matrix in affine viewing transform.
   property W : float3x3 {
     [Differentiable]
     get { return quat.asRotMat(this._rotation); }
+  }
+
+  property S : float2x2 {
+    [Differentiable]
+    get {
+      float2 fSensorSize = float2(this._sensorSize) / this._focalLength;
+      return float2x2(1 / fSensorSize.x, 0, 0, -1 / fSensorSize.y);
+    }
   }
 
   // Trnslation vector in affine viewing transform.
@@ -36,6 +54,9 @@ public struct Camera {
   // @return The point in view space.
   [Differentiable]
   float3 toView(float3 p) { return mul(this.W, p) + this.d; }
+
+  [Differentiable]
+  float2 toScreen(float2 p) { return mul(this.S, p) + float2(0.5, 0.5); }
 
   // Convert a point in view space to ray space.
   // @param p The point in view space.
@@ -61,7 +82,8 @@ public struct Camera {
 
     float3 col1 = float3(0, 1.0 / p.z, (p.y / len) * sign);
 
-    float3 col2 = float3(-p.x / (p.z * p.z), -p.y / (p.z * p.z), (p.z / len) * sign);
+    float3 col2 =
+        float3(-p.x / (p.z * p.z), -p.y / (p.z * p.z), (p.z / len) * sign);
 
     return float3x3(col0, col1, col2);
   }
@@ -82,14 +104,14 @@ public struct Camera {
     float3x3 J = this.toRayJ(u);
     float3x3 Vk = mul(J, mul(Vcam, transpose(J)));
 
-    // TODO: Implement ray space to screen space conversion (both for mean and
-    // covariance).
-
     float2x2 conv2d = float2x2(Vk[0][0], Vk[0][1], Vk[1][0], Vk[1][1]);
+
+    float3 s = float3(this.toScreen(x.xy), x.z);
+    float2x2 sCov = mul(this.S, mul(conv2d, transpose(this.S)));
 
     float3 viewDir = normalize(-u);
     float4 rgba = g.eval(g.position, viewDir);
 
-    return Gaussian2D(float3(x), conv2d, rgba.xyz, rgba.a);
+    return Gaussian2D(s, sCov, rgba.xyz, rgba.a);
   }
 };
