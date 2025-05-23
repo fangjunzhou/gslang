@@ -7,6 +7,13 @@ from typing import cast
 WAVE = 32
 
 
+mod = device.load_module("prefix-sum.slang")
+prog_scan = device.link_program([mod], [mod.entry_point("wave_scan")])
+prog_add = device.link_program([mod], [mod.entry_point("add_offset")])
+k_scan = device.create_compute_kernel(prog_scan)
+k_add = device.create_compute_kernel(prog_add)
+
+
 # parallel O(log_32(n)), space complexity O(n/32 + (n/32)^2 + n/32^3 + ... + 1) = O(n)
 # dispatch: 2log_32(n)
 def prefix_sum(src: spy.Buffer) -> spy.Buffer:
@@ -16,13 +23,6 @@ def prefix_sum(src: spy.Buffer) -> spy.Buffer:
     """
 
     n = src.size // src.struct_size
-
-    # TODO: Load the module and link the program outside the function.
-    mod = device.load_module("prefix-sum.slang")
-    prog_scan = device.link_program([mod], [mod.entry_point("wave_scan")])
-    prog_add = device.link_program([mod], [mod.entry_point("add_offset")])
-    k_scan = device.create_compute_kernel(prog_scan)
-    k_add = device.create_compute_kernel(prog_add)
 
     # dst0 will hold the final result
     dst0 = device.create_buffer(
