@@ -1,32 +1,50 @@
 module radix_sort;
 
+public struct KVPair {
+  public uint64_t key;
+  public uint val;
+
+  public __init(uint64_t k, uint v) {
+    key = k;
+    val = v;
+  }
+};
+
 struct RadixState {
-  uint bitPerPass;
-  RWStructuredBuffer<Tuple<uint64_t, uint>> src;
-  RWStructuredBuffer<Tuple<uint64_t, uint>> dst;
-  RWStructuredBuffer<uint> hist;
-  RWStructuredBuffer<uint> offs;
-
-  property radix : uint64_t {
-    get { return 1 << this.bitPerPass; }
-  }
-
-  property mask : uint64_t {
-    get { return this.radix - 1; }
-  }
+  uint shift;
+  uint mask;
+  uint bufSize;
+  RWStructuredBuffer<KVPair> src;
+  RWStructuredBuffer<KVPair> dst;
+  RWStructuredBuffer<Atomic<uint>> hist;
+  RWStructuredBuffer<Atomic<uint>> offs;
 };
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void clearHist(uint tid: SV_DispatchThreadID, RadixState state) {
-  state.hist[tid] = 0;
-  state.offs[tid] = 0;
+  state.hist[tid].store(0);
+  state.offs[tid].store(0);
 }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void buildHist(uint tid: SV_DispatchThreadID, RadixState state) {}
+void buildHist(uint tid: SV_DispatchThreadID, RadixState state) {
+  if (tid >= state.bufSize) return;
+  uint64_t key = state.src[tid].key;
+  uint digit = uint((key >> state.shift) & state.mask);
+  state.hist[digit].add(1);
+}
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void scatter(uint tid: SV_DispatchThreadID, RadixState state) {}
+void scatter(uint tid: SV_DispatchThreadID, RadixState state,
+             uniform uint binOffset, uniform uint binSize) {
+  if (tid >= binSize) return;
+  uint idx = binOffset + tid;
+  KVPair kv = state.src[idx];
+  uint digit = uint((kv.key >> state.shift) & state.mask);
+  uint offs = state.offs[digit].add(1);
+  state.dst[offs] = kv;
+}
+
