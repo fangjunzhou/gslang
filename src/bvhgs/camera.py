@@ -14,12 +14,15 @@ class Camera:
     # Focal length in pixels.
     focal_length: float
 
+
     def __init__(
         self,
         rotation: glm.quat,
         translation: glm.vec3,
         sensor_size: glm.uvec2,
         focal_length: float,
+        near_plane: float = 0.1,
+        far_plane: float = 1000.0,
     ) -> None:
         """Constructor for the Camera class.
 
@@ -32,6 +35,8 @@ class Camera:
         self.translation = translation
         self.sensor_size = sensor_size
         self.focal_length = focal_length
+        self.near_plane = near_plane
+        self.far_plane = far_plane
 
     def to_slang(self) -> Dict[str, Any]:
         """Convert the camera parameters to a dictionary format for Slang.
@@ -49,4 +54,6 @@ class Camera:
             "_translation": self.translation,
             "_sensorSize": self.sensor_size,
             "_focalLength": self.focal_length,
+            "_nearPlane": self.near_plane,
+            "_farPlane": self.far_plane,
         }

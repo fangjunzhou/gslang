@@ -2,7 +2,8 @@ import slangpy as spy
 import pathlib
 from typing import Any, Dict
 import numpy as np
-
+from pyntcloud import PyntCloud
+import pandas as pd
 
 class GaussianCloud:
     """A buffer for storing all the Gaussian point cloud in the scene.
@@ -27,13 +28,15 @@ class GaussianCloud:
     num_gaussians: int
 
     def __init__(self, size: int) -> None:
-        self.positions = np.random.rand(size, 3).astype(np.float32)
+        self.positions = np.random.randn(size, 3).astype(np.float32)
         self.rotations = np.random.rand(size, 4).astype(np.float32)
-        self.scales = np.random.rand(size, 3).astype(np.float32)
+        # Normalize the rotations
+        self.rotations /= np.linalg.norm(self.rotations, axis=1, keepdims=True)
+        self.scales = np.random.randn(size, 3).astype(np.float32)
 
-        self.colors = np.random.rand(size, 3).astype(np.float32)
-        self.opacities = np.random.rand(size, 1).astype(np.float32)
-        self.spherical_harmonics = np.random.rand(size, 15, 3).astype(
+        self.colors = np.random.randn(size, 3).astype(np.float32)
+        self.opacities = np.random.randn(size, 1).astype(np.float32)
+        self.spherical_harmonics = np.random.randn(size, 15, 3).astype(
             np.float32
         )
 
@@ -63,8 +66,56 @@ class GaussianCloud:
 
         :param path: path to the PLY file.
         """
-        # TODO: Implement loading from PLY file
-        pass
+        if not path.exists():
+            raise FileNotFoundError(f"File {path} does not exist.")
+        
+        cloud = PyntCloud.from_file(str(path.resolve()))
+        pts: pd.DataFrame = cloud.points
+        N = len(pts)
+        if N == 0:
+            raise ValueError(f"{path} contains no points")
+
+
+        # position
+        self.positions = pts[["x", "y", "z"]].to_numpy(np.float32)
+        self.positions = np.ascontiguousarray(self.positions,  dtype=np.float32)
+        
+
+        # orientation
+        quat_cols = ["rot_1", "rot_2", "rot_3", "rot_0"]
+        self.rotations = pts[quat_cols].to_numpy(np.float32)
+        self.rotations /= (
+            np.linalg.norm(self.rotations, axis=1, keepdims=True) + 1e-9
+        )
+        self.rotations = np.ascontiguousarray(self.rotations, dtype=np.float32)
+
+        # scales
+        log_scales = pts[["scale_0", "scale_1", "scale_2"]].to_numpy(np.float32)
+        self.scales = np.exp(log_scales)
+        self.scales = np.ascontiguousarray(self.scales, dtype=np.float32)
+
+        # colors
+        # sigmoid is done by the shader
+        rgb_dc = pts[["f_dc_0", "f_dc_1", "f_dc_2"]].to_numpy(np.float32)
+        self.colors = rgb_dc
+        self.colors = np.ascontiguousarray(self.colors, dtype=np.float32)
+
+        # opacities
+        self.opacities = pts["opacity"].to_numpy(np.float32)
+        self.opacities = np.ascontiguousarray(self.opacities, dtype=np.float32)
+
+        # sh
+        sh_cols = [f"f_rest_{i}" for i in range(45)]
+        self.spherical_harmonics = (
+            pts[sh_cols].to_numpy(np.float32).reshape(N, 15, 3)
+        )
+        self.spherical_harmonics = np.ascontiguousarray(
+            self.spherical_harmonics, dtype=np.float32
+        )
+
+
+        self.num_gaussians = N
+        
 
     def load_from_colmap(self, path: pathlib.Path):
         """Load a Gaussian point cloud from a COLMAP sparse file.

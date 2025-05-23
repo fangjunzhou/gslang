@@ -1,6 +1,7 @@
 # Misc
 .DS_Store
 .direnv/
+.temp
 
 # Python
 __pycache__/
@@ -9,3 +10,4 @@ __pycache__/
 
 # Benchmarks
 .benchmarks
+.tests
