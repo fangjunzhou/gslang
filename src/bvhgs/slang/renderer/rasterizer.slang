@@ -15,6 +15,7 @@ void duplicateGaussian(uint tid: SV_DispatchThreadID) {
 void rasterize(uint2 tid: SV_DispatchThreadID) {
   // Convert pixel coordinate to screen space uv.
   float2 uv = (float2(tid) + 0.5f) / float2(g_camera.sensorSize);
+  uv.y = 1 - uv.y;  // Flip y coordinate to match the sceen.
   // Tile size.
   float2 tileSize = float2(1, 1) / float2(TILE_SHAPE);
   // Tile id.
