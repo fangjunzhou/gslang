@@ -19,8 +19,8 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
   uint2 tile = uint2(uv / tileSize);
   uint tileId = tile.y * TILE_SHAPE.x + tile.x;
   // Get the offset and length of the tile.
-  uint tileLength = g_num_tile[tileId];
-  uint tileOffs = g_num_tile_prefix[tileId] - tileLength;
+  uint tileLength = g_tile_hist[tileId];
+  uint tileOffs = g_tile_offs[tileId];
   // Rasterize all the 2D gaussians in the tile.
   // Accumulate radiance.
   float3 radiance = float3(0, 0, 0);
