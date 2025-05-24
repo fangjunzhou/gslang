@@ -10,6 +10,8 @@ from bvhgs import gaussian_module, camera_module
 from bvhgs.camera import Camera
 from pyglm import glm
 
+from bvhgs.gaussian import GaussianCloud
+
 
 @pytest.fixture(params=[(1,), (4,)])
 def buffer_shape(request) -> Tuple[int]:
@@ -291,3 +293,87 @@ def test_near_far_culling():
     assert flags[0] == 1, "depth inside [near,far] should not be culled"
     assert flags[1] == 0, "depth beyond far plane should be culled"
     assert flags[2] == 0, "depth in front of near plane should be culled"
+
+
+@pytest.fixture(params=[1024, 4096, 16384, 65536, 262144])
+def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
+    """Fixture to provide a buffer size for benchmarking.
+
+    :param request: The pytest request object.
+    :return: The buffer size.
+    """
+    return request.param
+
+
+def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
+    """Benchmark the projection of Gaussian3D to Gaussian2D.
+
+    :param benchmark: The benchmark fixture.
+    :param benchmark_buffer_size: Size of the buffer for the test.
+    """
+    module = device.load_module("renderer.slang")
+    program = device.link_program([module], [module.entry_point("project")])
+    ker_proj = device.create_compute_kernel(program)
+
+    def projection_benchmark_setup():
+        """Setup for the projection benchmark.
+
+        :param benchmark_buffer_size: Size of the buffer for the test.
+        """
+        gaussians = GaussianCloud()
+        gaussians.randomize(benchmark_buffer_size)
+
+        # Create a camera instance.
+        cam = Camera(
+            rotation=glm.quat(1, 0, 0, 0),
+            translation=glm.vec3(0, 0, 1),
+            sensor_size=glm.uvec2(512, 512),
+            focal_length=64.0,
+        )
+
+        gaussian_3d_buf = device.create_buffer(
+            element_count=benchmark_buffer_size,
+            struct_type=program.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource,
+        )
+        gaussian_cursor = spy.BufferCursor(
+            program.reflection.g_gaussian_3d.type_layout.element_type_layout,
+            gaussian_3d_buf,
+        )
+
+        for i in range(len(gaussians)):
+            gaussian_cursor[i].write(gaussians[i])
+        gaussian_cursor.apply()
+
+        gaussian_2d_buf = device.create_buffer(
+            element_count=benchmark_buffer_size,
+            struct_type=program.reflection.g_gaussian_2d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        inside_flag_buf = device.create_buffer(
+            element_count=benchmark_buffer_size,
+            struct_type=program.reflection.g_inside_flag,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        args = ()
+        kwargs = {
+            "thread_count": [benchmark_buffer_size, 1, 1],
+            "vars": {
+                "g_camera": cam.to_slang(),
+                "g_gaussian_3d": gaussian_3d_buf,
+                "g_gaussian_2d": gaussian_2d_buf,
+                "g_inside_flag": inside_flag_buf,
+            },
+        }
+
+        return (args, kwargs)
+
+    benchmark.pedantic(
+        ker_proj.dispatch,
+        setup=projection_benchmark_setup,
+        rounds=10,
+    )
