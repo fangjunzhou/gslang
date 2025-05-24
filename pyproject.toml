@@ -13,6 +13,8 @@ dependencies = [
     "jax>=0.6.0",
     "pyntcloud>=0.3.1",
     "pillow>=11.2.1",
+    "pycolmap>=3.11.1",
+    "pyvista[full,jupyter]>=0.45.2",
 ]
 
 [build-system]
@@ -22,6 +24,7 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "black>=25.1.0",
+    "ipywidgets>=8.1.7",
     "jupyterlab>=4.4.1",
     "pyright>=1.1.400",
     "pytest>=8.3.5",
