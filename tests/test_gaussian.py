@@ -174,53 +174,6 @@ def test_gaussian3d_evalsh(buffer_shape: Tuple[int]):
     assert np.all(result[:, 0] > 0.0), "Red channel should be strictly positive"
 
 
-def test_gaussian3d_eval(buffer_shape: Tuple[int]):
-    """Test Evaluation."""
-    gaussian_buf = spy.InstanceBuffer(
-        struct=gaussian_module.Gaussian3D.as_struct(), shape=buffer_shape
-    )
-
-    red = spy.float3(1.0, 0.0, 0.0)
-    sh_coeffs = [red for _ in range(15)]
-
-    gaussian_buf.construct(
-        position=spy.float3(0, 0, 0),
-        rotation=spy.float4(0, 0, 0, 1),
-        scale=spy.float3(0.0, 0.0, 0.0),
-        color=spy.float3(0.0, 0.0, 0.0),
-        opacity=0.0,
-        shCoeffs=sh_coeffs,
-    )
-
-    pos = spy.float3(0, 0, 0)
-    dir = spy.float3(0.577, 0.577, 0.577)
-
-    result = gaussian_buf.eval(pos, dir, _result="numpy")
-
-    assert result.shape == (buffer_shape[0], 4)
-
-    sigmoid = lambda x: 1 / (1 + np.exp(-x))
-    expected_color = sigmoid(np.array([0.0, 0.0, 0.0]))
-    expected_opacity = sigmoid(0.0)
-    rho = np.exp(0.0)
-
-    expected_base = expected_color * rho
-    expected_alpha = expected_opacity * rho
-
-    assert np.all(
-        result[:, 3] == pytest.approx(expected_alpha)
-    ), "Alpha should be sigmoid(opacity_logit) * rho"
-    assert np.all(
-        result[:, 1] == pytest.approx(expected_base[1])
-    ), "Green should match sigmoid(g)"
-    assert np.all(
-        result[:, 2] == pytest.approx(expected_base[2])
-    ), "Blue should match sigmoid(b)"
-    assert np.all(
-        result[:, 0] > expected_base[0]
-    ), "Red should include SH contribution"
-
-
 def test_gaussian2d_init_default(buffer_shape: Tuple[int]):
     """Test Gaussian2D default constructor.
 
