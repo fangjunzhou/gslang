@@ -151,7 +151,7 @@ class Renderer:
                 "g_gaussian_2d": gaussian_2d_buf,
                 "g_inside_flag": inside_flag_buf,
                 "g_inside_offset": inside_offset_buf,
-                "g_culled_gaussian_2d": culled_gaussian_2d_buf,
+                "g_gaussian_2d_culled": culled_gaussian_2d_buf,
             },
         )
         # TODO: Implement the tile and rasterization kernels.
