@@ -1,5 +1,7 @@
 implementing "../renderer.slang";
 
+static const float EPS = 1e-6f;
+
 // Duplicate the screen space Gaussian for each tile.
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -37,6 +39,10 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
     radiance += attenuation * alpha * g.color;
     // Accumulate the attenuation.
     attenuation *= (1 - alpha);
+    // If the attenuation is zero, we can stop.
+    if (attenuation <= EPS) {
+      break;
+    }
   }
   // Write the radiance to the render target.
   g_render_target[tid] = float4(radiance, 1);
