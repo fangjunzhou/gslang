@@ -107,12 +107,12 @@ public struct Camera {
     // to ray space
     float3 x = this.toRay(u);
     float depth = x.z;
-    
+
     if (depth < this._nearPlane || depth > this._farPlane) {
       return Gaussian2D(float3(0, 0, -1), float2x2(0, 0, 0, 0), float3(0, 0, 0),
                         0);
     }
-    
+
     // normalize depth
     depth = (depth - this._nearPlane) / (this._farPlane - this._nearPlane);
 
@@ -124,8 +124,10 @@ public struct Camera {
     float2x2 sCov = mul(this.S, mul(conv2d, transpose(this.S)));
 
     float3 viewDir = normalize(-u);
-    float4 rgba = g.eval(g.position, viewDir);
+    float3 sh = g.sphericalHarmonics(viewDir);
+    float3 color = g.colorSig() + sh;
+    float opacity = g.opacitySig();
 
-    return Gaussian2D(s, sCov, rgba.xyz, rgba.a);
+    return Gaussian2D(s, sCov, color, opacity);
   }
 };

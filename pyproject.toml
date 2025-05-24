@@ -12,6 +12,7 @@ dependencies = [
     "pyglm>=2.8.2",
     "jax>=0.6.0",
     "pyntcloud>=0.3.1",
+    "pillow>=11.2.1",
 ]
 
 [build-system]

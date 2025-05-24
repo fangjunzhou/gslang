@@ -61,17 +61,6 @@ public struct Gaussian3D : IDifferentiable {
     return mul(R, mul(S, mul(transpose(S), transpose(R))));
   }
 
-  [Differentiable]
-  public float4 eval(float3 pos, float3 dir) {
-    float alpha = this.opacitySig();
-
-    float3 baseCol = this.colorSig();
-    float3 shCol = this.sphericalHarmonics(normalize(dir));
-    float3 finalCol = baseCol + shCol;
-
-    return float4(finalCol, alpha);
-  }
-
   /**
    * Computes the spherical harmonics (SH) value for a given direction.
    *
