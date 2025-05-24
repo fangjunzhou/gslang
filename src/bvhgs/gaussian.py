@@ -59,17 +59,21 @@ class GaussianCloud:
             "sh": [col for col in self.spherical_harmonics[index]],
         }
 
-    def randomize(self, size: int):
+    def randomize(
+        self, size: int, position_var: float = 1.0, scale_offst: float = 0
+    ):
         """Randomize the Gaussian point cloud.
 
         :param size: number of Gaussian points in the cloud.
         """
         # TODO: Add a seed for reproducibility. Add point distribution control.
-        self.positions = np.random.randn(size, 3).astype(np.float32)
+        self.positions = (
+            np.random.randn(size, 3).astype(np.float32) * position_var
+        )
         self.rotations = np.random.rand(size, 4).astype(np.float32)
         # Normalize the rotations
         self.rotations /= np.linalg.norm(self.rotations, axis=1, keepdims=True)
-        self.scales = np.random.randn(size, 3).astype(np.float32)
+        self.scales = np.random.randn(size, 3).astype(np.float32) + scale_offst
 
         self.colors = np.random.randn(size, 3).astype(np.float32)
         self.opacities = np.random.randn(size, 1).astype(np.float32)
