@@ -110,14 +110,14 @@ class GaussianCloud:
         self.rotations = np.ascontiguousarray(self.rotations, dtype=np.float32)
 
         # scales
-        log_scales = pts[["scale_0", "scale_1", "scale_2"]].to_numpy(np.float32)
-        self.scales = np.exp(log_scales)
+        self.scales = pts[["scale_0", "scale_1", "scale_2"]].to_numpy(
+            np.float32
+        )
         self.scales = np.ascontiguousarray(self.scales, dtype=np.float32)
 
         # colors
         # sigmoid is done by the shader
-        rgb_dc = pts[["f_dc_0", "f_dc_1", "f_dc_2"]].to_numpy(np.float32)
-        self.colors = rgb_dc
+        self.colors = pts[["f_dc_0", "f_dc_1", "f_dc_2"]].to_numpy(np.float32)
         self.colors = np.ascontiguousarray(self.colors, dtype=np.float32)
 
         # opacities

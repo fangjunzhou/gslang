@@ -60,28 +60,12 @@ public struct Gaussian3D : IDifferentiable {
                           float3(0, 0, scaleExp.z));
     return mul(R, mul(S, mul(transpose(S), transpose(R))));
   }
-  [Differentiable]
-  private float3x3 inv3x3(float3x3 m) {
-    float3 c0 = m[0];
-    float3 c1 = m[1];
-    float3 c2 = m[2];
-    float3 adj0 = cross(c1, c2);
-    float3 adj1 = cross(c2, c0);
-    float3 adj2 = cross(c0, c1);
 
-    float det = dot(c0, adj0);
-    return float3x3(adj0, adj1, adj2) / det;
-  }
   [Differentiable]
   public float4 eval(float3 pos, float3 dir) {
-    float3 d = pos - this.position;
-    float3x3 covInv = inv3x3(covariance());
-    float exponent = -dot(d, mul(covInv, d));
-    float rho = exp(exponent);
+    float alpha = this.opacitySig();
 
-    float alpha = this.opacitySig() * rho;
-
-    float3 baseCol = this.colorSig() * rho;
+    float3 baseCol = this.colorSig();
     float3 shCol = this.sphericalHarmonics(normalize(dir));
     float3 finalCol = baseCol + shCol;
 
