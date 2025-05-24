@@ -1,5 +1,6 @@
 module renderer;
 
+import radix_sort;
 import camera;
 import bounding_box;
 import gaussian;
@@ -19,7 +20,7 @@ static const uint2 TILE_SHAPE = uint2(16, 16);
 static const uint TILE_RADIX = 1 << 8;
 RWStructuredBuffer<uint> g_num_tile;
 RWStructuredBuffer<uint> g_num_tile_prefix;
-RWStructuredBuffer<Tuple<uint64_t, uint>> g_gaussian_table;
+RWStructuredBuffer<KVPair> g_gaussian_table;
 RWStructuredBuffer<uint> g_tile_offs;
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d_sorted;
 

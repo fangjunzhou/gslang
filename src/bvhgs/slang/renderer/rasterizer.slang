@@ -4,7 +4,7 @@ implementing "../renderer.slang";
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void duplicateGaussian(uint tid: SV_DispatchThreadID) {
-  uint gid = g_gaussian_table[tid]._1;
+  uint gid = g_gaussian_table[tid].val;
   g_gaussian_2d_sorted[tid] = g_gaussian_2d_culled[gid];
 }
 
