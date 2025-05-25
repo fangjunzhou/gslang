@@ -221,6 +221,7 @@ class Renderer:
         # Compute the histogram of the Gaussian table.
         self.ker_tile_hist.dispatch(
             thread_count=[table_size, 1, 1],
+            numEntries=table_size,
             vars={
                 "g_gaussian_table": gaussian_table_buf,
                 "g_tile_hist_atomic": hist_buf,

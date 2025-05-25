@@ -97,6 +97,13 @@ class App:
             # Update slider with reset values if it exists
             if self.scene_rotation_slider is not None:
                 self.scene_rotation_slider.value = self.scene_rotation
+            # Update camera position and rotation
+            if self.zoom_sensitivity is not None:
+                self.zoom_sensitivity.value = 0.1
+            if self.rotation_sensitivity is not None:
+                self.rotation_sensitivity.value = 0.01
+            if self.pan_sensitivity is not None:
+                self.pan_sensitivity.value = 0.01
             self.update_camera()
 
         spy.ui.Button(window, "Reset Camera", callback=reset_camera)
@@ -108,6 +115,26 @@ class App:
             value=0.1,  # Default value
             min=0.01,
             max=0.5,
+        )
+
+        # Add a slider for rotation speed
+        self.rotation_sensitivity = spy.ui.SliderFloat(
+            window,
+            "Rotation Sensitivity",
+            value=0.01,  # Default value
+            min=0.001,
+            max=0.1,
+            flags=spy.ui.SliderFlags.logarithmic,
+        )
+
+        # Add a slider for pan speed
+        self.pan_sensitivity = spy.ui.SliderFloat(
+            window,
+            "Pan Sensitivity",
+            value=0.01,  # Default value
+            min=0.001,
+            max=0.1,
+            flags=spy.ui.SliderFlags.logarithmic,
         )
 
         # Add a slider for global scene rotation (Euler angles in degrees)
@@ -194,13 +221,21 @@ class App:
             self.last_mouse = event.pos
             # rotation
             if self.left_down:
-                sensitivity = 0.01
+                sensitivity = (
+                    self.rotation_sensitivity.value
+                    if self.rotation_sensitivity is not None
+                    else 0.01
+                )
                 self.theta -= dx * sensitivity
                 self.phi -= dy * sensitivity
                 self.phi = np.clip(self.phi, 0, np.pi, dtype=float)
             # pan
             if self.right_down:
-                pan_speed = 0.01
+                pan_speed = (
+                    self.pan_sensitivity.value
+                    if self.pan_sensitivity is not None
+                    else 0.01
+                )
                 # axes in world
                 direction = glm.vec3(
                     np.sin(self.phi) * np.cos(self.theta),
