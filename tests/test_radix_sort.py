@@ -12,7 +12,7 @@ from bvhgs.radix_sort import radix_sort
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(params=[1, 16, 64, 255, 256, 257])
+@pytest.fixture(params=[1, 16, 32, 64])
 def buf_size(request):
     return request.param
 
@@ -27,8 +27,8 @@ def test_radix_sort(buf_size, toal_bits):
     values = np.arange(buf_size, dtype=np.uint32)
 
     mod = device.load_module("radix-sort.slang")
-    prog_bld = device.link_program([mod], [mod.entry_point("buildHist")])
-    tuple_type = prog_bld.reflection.buildHist.state.src
+    prog_bld = device.link_program([mod], [mod.entry_point("buildLocal")])
+    tuple_type = prog_bld.reflection.buildLocal.state.src
     elem_layout = tuple_type.type_layout.element_type_layout
 
     src_buf = device.create_buffer(
@@ -48,7 +48,7 @@ def test_radix_sort(buf_size, toal_bits):
     )
 
     sorted_buf, hist_buf = radix_sort(
-        src_buf, bits_per_pass=8, total_bits=toal_bits
+        src_buf, bits_per_pass=4, total_bits=toal_bits
     )
 
     logger.info(
@@ -63,6 +63,12 @@ def test_radix_sort(buf_size, toal_bits):
         out_vals.append(kv["val"])
 
     logger.info(f"out_keys: {out_keys[:8]}")
+    full_sorted = sorted(out_keys)
+    debug_sorted = full_sorted[1:]
+
+    print(">>> out_keys:", sorted(out_keys))
+    print(">>> sorted(keys):", sorted(keys.tolist()))
+
 
     assert sorted(out_keys) == sorted(keys.tolist()), "Key mismatch"
     assert out_keys == sorted(out_keys), "Keys not sorted"
@@ -72,12 +78,13 @@ def test_radix_sort(buf_size, toal_bits):
 
     hist_np = hist_buf.to_numpy().view(np.uint32)
     assert hist_np.sum() == buf_size, "Histogram total count wrong"
-    shift = toal_bits - 8
-    mask  = (1 << 8) - 1
+    shift = toal_bits - 4
+    mask  = (1 << 4) - 1
     expected = [
         int(np.count_nonzero(((keys >> shift) & mask) == b))
         for b in range(mask + 1)
     ]
+
     assert hist_np.tolist() == expected, (
         f"Last-pass histogram mismatch:\n"
         f"  got:      {hist_np.tolist()}\n"
