@@ -149,6 +149,9 @@ class Renderer:
         )
         # Read the last element of the cull prefix buffer to get the number of culled points.
         num_viewing = int(inside_offset_cursor[len(inside_offset_cursor) - 1].read())  # type: ignore
+        if num_viewing == 0:
+            logger.debug("No Gaussian points inside the camera frustum.")
+            return
         # Create a buffer for the culled Gaussian points.
         culled_gaussian_2d_buf = device.create_buffer(
             element_count=num_viewing,
