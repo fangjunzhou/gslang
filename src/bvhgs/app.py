@@ -12,10 +12,18 @@ from bvhgs.renderer import Renderer
 
 
 class App:
-    def __init__(self, ply_path: Path):
+    def __init__(
+        self,
+        ply_path: Path,
+        resolution: Tuple[int, int] = (800, 600),
+        focal_length: float = 580,
+    ):
         # Create window and device
         self.window = spy.Window(
-            width=800, height=600, title="BVHGS Viewer", resizable=False
+            width=resolution[0],
+            height=resolution[1],
+            title="BVHGS Viewer",
+            resizable=False,
         )
         self.device = spy.Device(enable_debug_layers=True)
         self.surface = self.device.create_surface(self.window)
@@ -54,8 +62,8 @@ class App:
         camera = Camera(
             position=cam_pos,
             rotation=cam_rot,
-            sensor_size=glm.uvec2(self.window.width, self.window.height),
-            focal_length=580,
+            sensor_size=glm.uvec2(resolution[0], resolution[1]),
+            focal_length=focal_length,
             near_plane=0.01,
             far_plane=100,
         )
@@ -109,8 +117,29 @@ class App:
             value=self.scene_rotation,  # Use the pre-initialized value
             min=-180.0,
             max=180.0,
-            callback=lambda _: self.update_camera()
+            callback=lambda _: self.update_camera(),
         )
+
+    def get_scene_rotation_quat(self) -> glm.quat:
+        # Make sure to use scene_rotation directly during initialization
+        scene_rotation_values = self.scene_rotation
+        if self.scene_rotation_slider is not None:
+            scene_rotation_values = self.scene_rotation_slider.value
+
+        # Convert Euler angles (in degrees) to radians
+        x_rad = glm.radians(scene_rotation_values.x)
+        y_rad = glm.radians(scene_rotation_values.y)
+        z_rad = glm.radians(scene_rotation_values.z)
+
+        # Create rotation quaternions for each axis
+        q_x = glm.angleAxis(x_rad, glm.vec3(1.0, 0.0, 0.0))
+        q_y = glm.angleAxis(y_rad, glm.vec3(0.0, 1.0, 0.0))
+        q_z = glm.angleAxis(z_rad, glm.vec3(0.0, 0.0, 1.0))
+
+        # Combine them (order matters: z * y * x)
+        scene_rotation_quat = q_z * q_y * q_x
+
+        return scene_rotation_quat
 
     def get_camera_pose(self) -> Tuple[glm.vec3, glm.quat]:
         """Get the current camera position and rotation."""
@@ -131,31 +160,15 @@ class App:
         view_rotation = glm.quatLookAt(direction, up)
 
         # Apply scene rotation (convert slider values from degrees to radians)
-        # Make sure to use scene_rotation directly during initialization
-        scene_rotation_values = self.scene_rotation
-        if self.scene_rotation_slider is not None:
-            scene_rotation_values = self.scene_rotation_slider.value
-
-        # Convert Euler angles (in degrees) to radians
-        x_rad = glm.radians(scene_rotation_values.x)
-        y_rad = glm.radians(scene_rotation_values.y)
-        z_rad = glm.radians(scene_rotation_values.z)
-
-        # Create rotation quaternions for each axis
-        q_x = glm.angleAxis(x_rad, glm.vec3(1.0, 0.0, 0.0))
-        q_y = glm.angleAxis(y_rad, glm.vec3(0.0, 1.0, 0.0))
-        q_z = glm.angleAxis(z_rad, glm.vec3(0.0, 0.0, 1.0))
-
-        # Combine them (order matters: z * y * x)
-        scene_rotation_quat = q_z * q_y * q_x
+        scene_rotation_quat = self.get_scene_rotation_quat()
 
         # Apply scene rotation to camera rotation
         final_rotation = scene_rotation_quat * view_rotation
         # Convert to glm.quat
-        final_position = scene_rotation_quat * glm.quat(
-            0.0, position.x, position.y, position.z
-        ) * glm.conjugate(
+        final_position = (
             scene_rotation_quat
+            * glm.quat(0.0, position.x, position.y, position.z)
+            * glm.conjugate(scene_rotation_quat)
         )
         final_position = glm.vec3(
             final_position.x, final_position.y, final_position.z
@@ -185,22 +198,25 @@ class App:
                 self.theta -= dx * sensitivity
                 self.phi -= dy * sensitivity
                 self.phi = np.clip(self.phi, 0, np.pi, dtype=float)
-                self.update_camera()
             # pan
             if self.right_down:
                 pan_speed = 0.01
-                cam = self.renderer.camera
                 # axes in world
-                cam_rot = quaternion.from_float_array(cam.rotation)
-                right = quaternion.as_rotation_matrix(cam_rot).dot(
-                    np.array([1, 0, 0], dtype=np.float32)
+                direction = glm.vec3(
+                    np.sin(self.phi) * np.cos(self.theta),
+                    np.sin(self.phi) * np.sin(self.theta),
+                    np.cos(self.phi),
                 )
-                up = quaternion.as_rotation_matrix(cam_rot).dot(
-                    np.array([0, 1, 0], dtype=np.float32)
+                right = glm.cross(
+                    glm.vec3(np.cos(self.theta), np.sin(self.theta), 0),
+                    glm.vec3(0, 0, 1),
                 )
-                shift = -right * dx * pan_speed - up * dy * pan_speed
-                cam.position += glm.vec3(*shift)
-                self.cursor += glm.vec3(*shift)
+                up = glm.cross(right, -direction)
+                # Move cursor position based on mouse movement
+                self.cursor += right * dx * pan_speed - up * dy * pan_speed
+            # Update camera position based on cursor
+            self.update_camera()
+
         elif event.type == spy.MouseEventType.scroll:
             if event.scroll.y != 0:
                 # Base zoom speed from UI slider or default value
@@ -288,8 +304,25 @@ if __name__ == "__main__":
         type=Path,
         help="Path to the PLY file containing Gaussian points",
     )
+    parser.add_argument(
+        "--resolution",
+        type=int,
+        nargs=2,
+        default=(800, 600),
+        help="Resolution of the window (width height)",
+    )
+    parser.add_argument(
+        "--focal-length",
+        type=float,
+        default=580.0,
+        help="Focal length for the camera",
+    )
     args = parser.parse_args()
     if not args.ply_path.exists():
         raise FileNotFoundError(f"PLY file not found: {args.ply_path}")
     # Initialize and run the application
-    App(ply_path=args.ply_path).run()
+    App(
+        ply_path=args.ply_path,
+        resolution=tuple(args.resolution),
+        focal_length=args.focal_length,
+    ).run()
