@@ -15,7 +15,7 @@ static const float C5 = sqrt(21.0 / (2.0 * PI));
 static const float C6 = sqrt(7.0 / PI);
 static const int SH_COUNT = 15;
 
-static const float BBOX_SIZE = 2.75;
+static const float BBOX_SIZE = 3;
 
 public struct Gaussian3D : IDifferentiable {
   public float3 position;
@@ -58,34 +58,7 @@ public struct Gaussian3D : IDifferentiable {
     float3x3 R = quat::asRotMat(rotation);
     float3x3 S = float3x3(float3(scaleExp.x, 0, 0), float3(0, scaleExp.y, 0),
                           float3(0, 0, scaleExp.z));
-    return mul(R, mul(S, transpose(S)) * transpose(R));
-  }
-  [Differentiable]
-  private float3x3 inv3x3(float3x3 m) {
-    float3 c0 = m[0];
-    float3 c1 = m[1];
-    float3 c2 = m[2];
-    float3 adj0 = cross(c1, c2);
-    float3 adj1 = cross(c2, c0);
-    float3 adj2 = cross(c0, c1);
-
-    float det = dot(c0, adj0);
-    return float3x3(adj0, adj1, adj2) / det;
-  }
-  [Differentiable]
-  public float4 eval(float3 pos, float3 dir) {
-    float3 d = pos - this.position;
-    float3x3 covInv = inv3x3(covariance());
-    float exponent = -dot(d, mul(covInv, d));
-    float rho = exp(exponent);
-
-    float alpha = this.opacitySig() * rho;
-
-    float3 baseCol = this.colorSig() * rho;
-    float3 shCol = this.sphericalHarmonics(normalize(dir));
-    float3 finalCol = baseCol + shCol;
-
-    return float4(finalCol, alpha);
+    return mul(R, mul(S, mul(transpose(S), transpose(R))));
   }
 
   /**

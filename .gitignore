@@ -13,4 +13,5 @@ __pycache__/
 .tests
 
 # Data
+resources/dataset
 resources/scenes

@@ -69,11 +69,8 @@ def test_radix_sort(buf_size, toal_bits):
 
     hist_np = hist_buf.to_numpy().view(np.uint32)
     assert hist_np.sum() == buf_size, "Histogram total count wrong"
-
-    hist_np = hist_buf.to_numpy().view(np.uint32)
-    assert hist_np.sum() == buf_size, "Histogram total count wrong"
     shift = toal_bits - 8
-    mask  = (1 << 8) - 1
+    mask = (1 << 8) - 1
     expected = [
         int(np.count_nonzero(((keys >> shift) & mask) == b))
         for b in range(mask + 1)
@@ -83,6 +80,3 @@ def test_radix_sort(buf_size, toal_bits):
         f"  got:      {hist_np.tolist()}\n"
         f"  expected: {expected}"
     )
-    # for bin_val in range(hist_np.shape[0]):
-    #     expect = np.count_nonzero((keys & 0xFF) == bin_val)
-    #     assert hist_np[bin_val] == expect, f"Hist[{bin_val}] wrong"

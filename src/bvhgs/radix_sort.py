@@ -9,20 +9,21 @@ np.random.seed(0)
 logger = logging.getLogger(__name__)
 
 
+mod = device.load_module("radix-sort.slang")
+prog_clr = device.link_program([mod], [mod.entry_point("clearHist")])
+prog_bld = device.link_program([mod], [mod.entry_point("buildHist")])
+prog_sct = device.link_program([mod], [mod.entry_point("scatter")])
+
+k_clear = device.create_compute_kernel(prog_clr)
+k_build = device.create_compute_kernel(prog_bld)
+k_scatter = device.create_compute_kernel(prog_sct)
+
+
 def radix_sort(
     src_buf: spy.Buffer,
     bits_per_pass: int = 8,
     total_bits: Optional[int] = None,
 ) -> Tuple[spy.Buffer, spy.Buffer]:
-    mod = device.load_module("radix-sort.slang")
-    prog_clr = device.link_program([mod], [mod.entry_point("clearHist")])
-    prog_bld = device.link_program([mod], [mod.entry_point("buildHist")])
-    prog_sct = device.link_program([mod], [mod.entry_point("scatter")])
-
-    k_clear = device.create_compute_kernel(prog_clr)
-    k_build = device.create_compute_kernel(prog_bld)
-    k_scatter = device.create_compute_kernel(prog_sct)
-
     if total_bits is None:
         total_bits = 8
     n = src_buf.size // src_buf.struct_size
