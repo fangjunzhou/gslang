@@ -177,7 +177,7 @@ def test_off_screen():
 
     camera = Camera(
         rotation=glm.quat(1, 0, 0, 0),
-        translation=glm.vec3(0, 0, 1),
+        position=-glm.vec3(0, 0, 1),
         sensor_size=glm.uvec2(512, 512),
         focal_length=64,
     )
@@ -268,7 +268,7 @@ def test_near_far_culling():
 
     cam = Camera(
         rotation=glm.quat(),
-        translation=glm.vec3(0, 0, 0),
+        position=glm.vec3(0, 0, 0),
         sensor_size=glm.uvec2(512, 512),
         focal_length=64,
         near_plane=0.5,
@@ -326,7 +326,7 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
         # Create a camera instance.
         cam = Camera(
             rotation=glm.quat(1, 0, 0, 0),
-            translation=glm.vec3(0, 0, 1),
+            position=glm.vec3(0, 0, 1),
             sensor_size=glm.uvec2(512, 512),
             focal_length=64.0,
         )
