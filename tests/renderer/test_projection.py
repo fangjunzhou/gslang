@@ -11,6 +11,7 @@ from bvhgs.camera import Camera
 from pyglm import glm
 
 from bvhgs.gaussian import GaussianCloud
+from bvhgs.prefix_sum import prefix_sum
 
 
 @pytest.fixture(params=[(1,), (4,)])
@@ -295,7 +296,7 @@ def test_near_far_culling():
     assert flags[2] == 0, "depth in front of near plane should be culled"
 
 
-@pytest.fixture(params=[1024, 4096, 16384, 65536, 262144])
+@pytest.fixture(params=[2**10, 2**12, 2**14, 2**16, 2**17, 2**18])
 def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
     """Fixture to provide a buffer size for benchmarking.
 
@@ -375,5 +376,64 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
     benchmark.pedantic(
         ker_proj.dispatch,
         setup=projection_benchmark_setup,
+        rounds=10,
+    )
+
+
+def test_culling_benchmark(benchmark, benchmark_buffer_size: int):
+    """Benchmark the culling of Gaussian2D points.
+
+    :param benchmark: The benchmark fixture.
+    :param benchmark_buffer_size: Size of the buffer for the test.
+    """
+    module = device.load_module("renderer.slang")
+    program = device.link_program([module], [module.entry_point("cull")])
+    ker_cull = device.create_compute_kernel(program)
+
+    def culling_benchmark_setup():
+        """Setup for the culling benchmark."""
+        gaussians = GaussianCloud()
+        gaussians.randomize(benchmark_buffer_size)
+
+        # Create a camera instance.
+        cam = Camera(
+            rotation=glm.quat(1, 0, 0, 0),
+            position=glm.vec3(0, 0, 1),
+            sensor_size=glm.uvec2(512, 512),
+            focal_length=64.0,
+        )
+
+        gaussian_2d_buf = device.create_buffer(
+            element_count=benchmark_buffer_size,
+            struct_type=program.reflection.g_gaussian_2d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        inside_flag_buf = device.create_buffer(
+            element_count=benchmark_buffer_size,
+            struct_type=program.reflection.g_inside_flag,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        offset_buf = prefix_sum(inside_flag_buf)
+
+        args = ()
+        kwargs = {
+            "thread_count": [benchmark_buffer_size, 1, 1],
+            "vars": {
+                "g_camera": cam.to_slang(),
+                "g_inside_flag": inside_flag_buf,
+                "g_inside_offset": offset_buf,
+                "g_gaussian_2d": gaussian_2d_buf,
+            },
+        }
+
+        return (args, kwargs)
+
+    benchmark.pedantic(
+        ker_cull.dispatch,
+        setup=culling_benchmark_setup,
         rounds=10,
     )
