@@ -48,9 +48,7 @@ def test_radix_sort(buf_size, toal_bits):
         f"src_buf: {src_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
     )
 
-    sorted_buf, hist_buf = radix_sort(
-        src_buf, bits_per_pass=8, total_bits=toal_bits
-    )
+    sorted_buf = radix_sort(src_buf, bits_per_pass=8, total_bits=toal_bits)
 
     logger.info(
         f"sorted_buf: {sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
@@ -68,20 +66,6 @@ def test_radix_sort(buf_size, toal_bits):
     assert sorted(out_keys) == sorted(keys.tolist()), "Key mismatch"
     assert out_keys == sorted(out_keys), "Keys not sorted"
 
-    hist_np = hist_buf.to_numpy().view(np.uint32)
-    assert hist_np.sum() == buf_size, "Histogram total count wrong"
-    shift = toal_bits - 8
-    mask = (1 << 8) - 1
-    expected = [
-        int(np.count_nonzero(((keys >> shift) & mask) == b))
-        for b in range(mask + 1)
-    ]
-    assert hist_np.tolist() == expected, (
-        f"Last-pass histogram mismatch:\n"
-        f"  got:      {hist_np.tolist()}\n"
-        f"  expected: {expected}"
-    )
-
 
 @pytest.fixture(params=[2**i for i in range(10, 20)])
 def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
@@ -93,14 +77,18 @@ def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
     return request.param
 
 
-def test_radix_sort_benchmark(benchmark: BenchmarkFixture, benchmark_buffer_size: int):
+def test_radix_sort_benchmark(
+    benchmark: BenchmarkFixture, benchmark_buffer_size: int
+):
     """Benchmark the radix sort function with varying buffer sizes.
 
     :param benchmark: The benchmark fixture.
     :param benchmark_buffer_size: Size of the buffer for the test.
     """
     # Create random key-value pairs
-    keys = np.random.randint(0, 2**40, size=benchmark_buffer_size, dtype=np.uint64)
+    keys = np.random.randint(
+        0, 2**40, size=benchmark_buffer_size, dtype=np.uint64
+    )
     values = np.arange(benchmark_buffer_size, dtype=np.uint32)
 
     # Load module and prepare buffer
@@ -126,14 +114,18 @@ def test_radix_sort_benchmark(benchmark: BenchmarkFixture, benchmark_buffer_size
     benchmark(radix_sort, src_buf, 8, 40)
 
 
-def test_stable_radix_sort_benchmark(benchmark: BenchmarkFixture, benchmark_buffer_size: int):
+def test_stable_radix_sort_benchmark(
+    benchmark: BenchmarkFixture, benchmark_buffer_size: int
+):
     """Benchmark the stable radix sort function with varying buffer sizes.
 
     :param benchmark: The benchmark fixture.
     :param benchmark_buffer_size: Size of the buffer for the test.
     """
     # Create random key-value pairs
-    keys = np.random.randint(0, 2**40, size=benchmark_buffer_size, dtype=np.uint64)
+    keys = np.random.randint(
+        0, 2**40, size=benchmark_buffer_size, dtype=np.uint64
+    )
     values = np.arange(benchmark_buffer_size, dtype=np.uint32)
 
     # Load module and prepare buffer
@@ -161,35 +153,39 @@ def test_stable_radix_sort_benchmark(benchmark: BenchmarkFixture, benchmark_buff
 
 def numpy_sort(src_buf: spy.Buffer) -> spy.Buffer:
     """Sort a buffer using only NumPy.
-    
+
     This function extracts the buffer data to NumPy array,
     sorts it using np.argsort, and copies it back to the buffer.
-    
+
     :param src_buf: Source buffer with key-value pairs
     :return: The same buffer with sorted contents
     """
     # Extract the buffer data to NumPy array
     table_arr = src_buf.to_numpy().view(np.uint64).reshape(-1, 2)
-    
+
     # Sort by the first column (keys)
     sort_idx = np.argsort(table_arr[:, 0])
     table_arr = table_arr[sort_idx]
-    
+
     # Copy back to the buffer
     src_buf.copy_from_numpy(table_arr)
     return src_buf
 
 
-def test_numpy_sort_benchmark(benchmark: BenchmarkFixture, benchmark_buffer_size: int):
+def test_numpy_sort_benchmark(
+    benchmark: BenchmarkFixture, benchmark_buffer_size: int
+):
     """Benchmark sorting using NumPy only, without GPU radix sort.
-    
+
     This benchmark helps compare pure CPU-based sorting against GPU-based methods.
-    
+
     :param benchmark: The benchmark fixture.
     :param benchmark_buffer_size: Size of the buffer for the test.
     """
     # Create random key-value pairs
-    keys = np.random.randint(0, 2**40, size=benchmark_buffer_size, dtype=np.uint64)
+    keys = np.random.randint(
+        0, 2**40, size=benchmark_buffer_size, dtype=np.uint64
+    )
     values = np.arange(benchmark_buffer_size, dtype=np.uint32)
 
     # Load module and prepare buffer

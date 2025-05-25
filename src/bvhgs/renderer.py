@@ -6,7 +6,7 @@ from bvhgs import device
 from bvhgs.camera import Camera
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.prefix_sum import prefix_sum
-from bvhgs.radix_sort import radix_sort, stable_radix_sort
+from bvhgs.radix_sort import numpy_sort, radix_sort, stable_radix_sort
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ class Renderer:
     # Tile kernels.
     ker_tile: spy.ComputeKernel
     ker_gs_table: spy.ComputeKernel
+    ker_tile_hist: spy.ComputeKernel
     # Rasterization kernels.
     ker_duplicate_gs: spy.ComputeKernel
     ker_rasterize: spy.ComputeKernel
@@ -70,6 +71,12 @@ class Renderer:
                 entry_points=[
                     renderer_module.entry_point("buildGaussianTable")
                 ],
+            )
+        )
+        self.ker_tile_hist = device.create_compute_kernel(
+            device.link_program(
+                modules=[renderer_module],
+                entry_points=[renderer_module.entry_point("tileHistogram")],
             )
         )
         self.ker_duplicate_gs = device.create_compute_kernel(
@@ -203,8 +210,21 @@ class Renderer:
             },
         )
         # Sort tiles.
-        gaussian_table_sorted_buf, hist_buf = stable_radix_sort(
-            gaussian_table_buf, 8, 40
+        numpy_sort(gaussian_table_buf)
+        # Create a histogram buffer for the tiles.
+        hist_buf = device.create_buffer(
+            element_count=2**8,
+            struct_type=self.program.reflection.g_tile_hist_atomic,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        # Compute the histogram of the Gaussian table.
+        self.ker_tile_hist.dispatch(
+            thread_count=[table_size, 1, 1],
+            vars={
+                "g_gaussian_table": gaussian_table_buf,
+                "g_tile_hist_atomic": hist_buf,
+            },
         )
         # Duplicate Gaussian points.
         gaussian_2d_sorted_buf = device.create_buffer(
@@ -216,7 +236,7 @@ class Renderer:
         self.ker_duplicate_gs.dispatch(
             thread_count=[table_size, 1, 1],
             vars={
-                "g_gaussian_table": gaussian_table_sorted_buf,
+                "g_gaussian_table": gaussian_table_buf,
                 "g_gaussian_2d_culled": culled_gaussian_2d_buf,
                 "g_gaussian_2d_sorted": gaussian_2d_sorted_buf,
             },

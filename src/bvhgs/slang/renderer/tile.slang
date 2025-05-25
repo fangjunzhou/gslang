@@ -61,3 +61,12 @@ void buildGaussianTable(uint tid: SV_DispatchThreadID) {
   }
 }
 
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void tileHistogram(uint tid: SV_DispatchThreadID) {
+  KVPair kv = g_gaussian_table[tid];
+  // Get the tile id.
+  uint tileId = uint(kv.key >> 32);
+  // Count the number of gaussians in the tile.
+  g_tile_hist_atomic[tileId].add(1);
+}

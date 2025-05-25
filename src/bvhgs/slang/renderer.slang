@@ -21,6 +21,7 @@ static const uint TILE_RADIX = 1 << 8;
 RWStructuredBuffer<uint> g_num_tiles;
 RWStructuredBuffer<uint> g_num_tiles_prefix;
 RWStructuredBuffer<KVPair> g_gaussian_table;
+RWStructuredBuffer<Atomic<uint>> g_tile_hist_atomic;
 RWStructuredBuffer<uint> g_tile_hist;
 RWStructuredBuffer<uint> g_tile_offs;
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d_sorted;

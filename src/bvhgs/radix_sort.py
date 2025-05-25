@@ -23,7 +23,7 @@ def radix_sort(
     src_buf: spy.Buffer,
     bits_per_pass: int = 8,
     total_bits: Optional[int] = None,
-) -> Tuple[spy.Buffer, spy.Buffer]:
+) -> spy.Buffer:
     if total_bits is None:
         total_bits = 8
     n = src_buf.size // src_buf.struct_size
@@ -103,14 +103,14 @@ def radix_sort(
 
         src_buf, dst_buf = dst_buf, src_buf
 
-    return src_buf, hist_buf
+    return src_buf
 
 
 def stable_radix_sort(
     src_buf: spy.Buffer,
     bits_per_pass: int = 8,
     total_bits: int = 40,
-) -> Tuple[spy.Buffer, spy.Buffer]:
+) -> spy.Buffer:
     """A stable version of radix sort that uses numpy to ensure stability.
 
     This function is a temporary workaround until the radix sort implementation
@@ -121,9 +121,7 @@ def stable_radix_sort(
     :param total_bits: Total number of bits in the key.
     :return: A tuple of (sorted buffer, histogram buffer).
     """
-    sorted_buf, hist_buf = radix_sort(
-        src_buf, bits_per_pass, total_bits
-    )
+    sorted_buf = radix_sort(src_buf, bits_per_pass, total_bits)
 
     # Fix: Use numpy to ensure stable sort
     table_arr = sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)
@@ -131,4 +129,15 @@ def stable_radix_sort(
     table_arr = table_arr[sort_idx]
     sorted_buf.copy_from_numpy(table_arr)
 
-    return sorted_buf, hist_buf
+    return sorted_buf
+
+
+def numpy_sort(
+    buf: spy.Buffer,
+):
+    """Sorts a buffer using numpy for stability."""
+    table_arr = buf.to_numpy().view(np.uint64).reshape(-1, 2)
+    sort_idx = np.argsort(table_arr[:, 0])
+    table_arr = table_arr[sort_idx]
+
+    buf.copy_from_numpy(table_arr)
