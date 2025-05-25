@@ -353,12 +353,10 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
 
     ker_load.dispatch(
         thread_count=[benchmark_buffer_size, 1, 1],
-        vars={
-            "g_gaussian_3d": gaussian_3d_buf,
-            "g_position": position_buf.storage,
-            "g_rotation": rotation_buf.storage,
-            "g_scale": scale_buf.storage,
-        },
+        position=position_buf.storage,
+        rotation=rotation_buf.storage,
+        scale=scale_buf.storage,
+        gaussians=gaussian_3d_buf,
     )
 
     gaussian_2d_buf = device.create_buffer(
@@ -449,12 +447,10 @@ def test_cull_benchmark(benchmark, benchmark_buffer_size: int):
 
     ker_load.dispatch(
         thread_count=[benchmark_buffer_size, 1, 1],
-        vars={
-            "g_gaussian_3d": gaussian_3d_buf,
-            "g_position": position_buf.storage,
-            "g_rotation": rotation_buf.storage,
-            "g_scale": scale_buf.storage,
-        },
+        position=position_buf.storage,
+        rotation=rotation_buf.storage,
+        scale=scale_buf.storage,
+        gaussians=gaussian_3d_buf,
     )
 
     inside_flag_buf = device.create_buffer(
