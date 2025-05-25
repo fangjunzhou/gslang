@@ -380,17 +380,22 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
     )
 
 
-def test_culling_benchmark(benchmark, benchmark_buffer_size: int):
-    """Benchmark the culling of Gaussian2D points.
+def test_cull_benchmark(benchmark, benchmark_buffer_size: int):
+    """Benchmark the culling of Gaussian3D based on camera parameters.
 
     :param benchmark: The benchmark fixture.
     :param benchmark_buffer_size: Size of the buffer for the test.
     """
     module = device.load_module("renderer.slang")
-    program = device.link_program([module], [module.entry_point("cull")])
-    ker_cull = device.create_compute_kernel(program)
+    program_cull = device.link_program([module], [module.entry_point("cull")])
+    ker_cull = device.create_compute_kernel(program_cull)
 
-    def culling_benchmark_setup():
+    program_proj = device.link_program(
+        [module], [module.entry_point("project")]
+    )
+    ker_proj = device.create_compute_kernel(program_proj)
+
+    def cull_benchmark_setup():
         """Setup for the culling benchmark."""
         gaussians = GaussianCloud()
         gaussians.randomize(benchmark_buffer_size)
@@ -398,35 +403,63 @@ def test_culling_benchmark(benchmark, benchmark_buffer_size: int):
         # Create a camera instance.
         cam = Camera(
             rotation=glm.quat(1, 0, 0, 0),
-            position=glm.vec3(0, 0, 1),
+            position=glm.vec3(0, 0, -1),
             sensor_size=glm.uvec2(512, 512),
             focal_length=64.0,
+            near_plane=0.5,
+            far_plane=1000.0,
         )
+
+        gaussian_3d_buf = device.create_buffer(
+            element_count=benchmark_buffer_size,
+            struct_type=program_proj.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource,
+        )
+        gaussian_cursor = spy.BufferCursor(
+            program_proj.reflection.g_gaussian_3d.type_layout.element_type_layout,
+            gaussian_3d_buf,
+        )
+
+        for i in range(len(gaussians)):
+            gaussian_cursor[i].write(gaussians[i])
+        gaussian_cursor.apply()
 
         gaussian_2d_buf = device.create_buffer(
             element_count=benchmark_buffer_size,
-            struct_type=program.reflection.g_gaussian_2d,
+            struct_type=program_proj.reflection.g_gaussian_2d,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
 
         inside_flag_buf = device.create_buffer(
             element_count=benchmark_buffer_size,
-            struct_type=program.reflection.g_inside_flag,
+            struct_type=program_proj.reflection.g_inside_flag,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
 
-        offset_buf = prefix_sum(inside_flag_buf)
-
+        ker_proj.dispatch(
+            thread_count=[benchmark_buffer_size, 1, 1],
+            vars={
+                "g_camera": cam.to_slang(),
+                "g_gaussian_3d": gaussian_3d_buf,
+                "g_gaussian_2d": gaussian_2d_buf,
+                "g_inside_flag": inside_flag_buf,
+            },
+        )
         args = ()
+        g_gaussian_2d_culled_buf = device.create_buffer(
+            element_count=benchmark_buffer_size,
+            struct_type=program_cull.reflection.g_gaussian_2d_culled,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
         kwargs = {
             "thread_count": [benchmark_buffer_size, 1, 1],
             "vars": {
-                "g_camera": cam.to_slang(),
-                "g_inside_flag": inside_flag_buf,
-                "g_inside_offset": offset_buf,
+                "g_gaussian_2d_culled": g_gaussian_2d_culled_buf,
                 "g_gaussian_2d": gaussian_2d_buf,
+                "g_inside_flag": inside_flag_buf,
             },
         }
 
@@ -434,6 +467,6 @@ def test_culling_benchmark(benchmark, benchmark_buffer_size: int):
 
     benchmark.pedantic(
         ker_cull.dispatch,
-        setup=culling_benchmark_setup,
+        setup=cull_benchmark_setup,
         rounds=10,
     )
