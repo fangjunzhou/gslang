@@ -32,7 +32,7 @@ void buildGaussianTable(uint tid: SV_DispatchThreadID) {
     tableIdx = g_num_tiles_prefix[tid - 1];
   }
   // Gaussian depth.
-  uint depth = uint(g.position.z * 16384);
+  uint depth = uint(g.position.z * pow(2, 30));
   // Get the bounding box of the gaussian.
   BoundingBox2D bbox = g.boundingBox();
   float2 bMin = bbox.min;
@@ -63,7 +63,10 @@ void buildGaussianTable(uint tid: SV_DispatchThreadID) {
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void tileHistogram(uint tid: SV_DispatchThreadID) {
+void tileHistogram(uint tid: SV_DispatchThreadID, uniform uint numEntries) {
+  if (tid >= numEntries) {
+    return;
+  }
   KVPair kv = g_gaussian_table[tid];
   // Get the tile id.
   uint tileId = uint(kv.key >> 32);
