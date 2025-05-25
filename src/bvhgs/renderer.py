@@ -157,7 +157,7 @@ class Renderer:
             | spy.BufferUsage.unordered_access,
         )
         self.ker_cull.dispatch(
-            thread_count=[num_viewing, 1, 1],
+            thread_count=[len(self.gaussians), 1, 1],
             vars={
                 "g_gaussian_2d": gaussian_2d_buf,
                 "g_inside_flag": inside_flag_buf,
