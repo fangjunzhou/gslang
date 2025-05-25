@@ -389,8 +389,10 @@ def test_cull_benchmark(benchmark, benchmark_buffer_size: int):
     module = device.load_module("renderer.slang")
     program_cull = device.link_program([module], [module.entry_point("cull")])
     ker_cull = device.create_compute_kernel(program_cull)
-    
-    program_proj = device.link_program([module], [module.entry_point("project")])
+
+    program_proj = device.link_program(
+        [module], [module.entry_point("project")]
+    )
     ker_proj = device.create_compute_kernel(program_proj)
 
     def cull_benchmark_setup():
@@ -401,7 +403,7 @@ def test_cull_benchmark(benchmark, benchmark_buffer_size: int):
         # Create a camera instance.
         cam = Camera(
             rotation=glm.quat(1, 0, 0, 0),
-            translation=glm.vec3(0, 0, 1),
+            position=glm.vec3(0, 0, -1),
             sensor_size=glm.uvec2(512, 512),
             focal_length=64.0,
             near_plane=0.5,
@@ -462,7 +464,7 @@ def test_cull_benchmark(benchmark, benchmark_buffer_size: int):
         }
 
         return (args, kwargs)
-    
+
     benchmark.pedantic(
         ker_cull.dispatch,
         setup=cull_benchmark_setup,
