@@ -296,7 +296,7 @@ def test_near_far_culling():
     assert flags[2] == 0, "depth in front of near plane should be culled"
 
 
-@pytest.fixture(params=[2**10, 2**12, 2**14, 2**16, 2**17, 2**18])
+@pytest.fixture(params=[2**i for i in range(10, 20)])
 def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
     """Fixture to provide a buffer size for benchmarking.
 
@@ -315,6 +315,12 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
     module = device.load_module("renderer.slang")
     program = device.link_program([module], [module.entry_point("project")])
     ker_proj = device.create_compute_kernel(program)
+
+    test_module = device.load_module("tests.slang")
+    test_program = device.link_program(
+        [test_module], [test_module.entry_point("loadGaussian3D")]
+    )
+    test_ker = device.create_compute_kernel(test_program)
 
     def projection_benchmark_setup():
         """Setup for the projection benchmark.
@@ -337,14 +343,28 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
             struct_type=program.reflection.g_gaussian_3d,
             usage=spy.BufferUsage.shader_resource,
         )
-        gaussian_cursor = spy.BufferCursor(
-            program.reflection.g_gaussian_3d.type_layout.element_type_layout,
-            gaussian_3d_buf,
+        position_buf = spy.NDBuffer(
+            device, dtype=spy.float3, shape=(benchmark_buffer_size,)
         )
+        rotation_buf = spy.NDBuffer(
+            device, dtype=spy.float4, shape=(benchmark_buffer_size,)
+        )
+        scale_buf = spy.NDBuffer(
+            device, dtype=spy.float3, shape=(benchmark_buffer_size,)
+        )
+        position_buf.copy_from_numpy(gaussians.positions)
+        rotation_buf.copy_from_numpy(gaussians.rotations)
+        scale_buf.copy_from_numpy(gaussians.scales)
 
-        for i in range(len(gaussians)):
-            gaussian_cursor[i].write(gaussians[i])
-        gaussian_cursor.apply()
+        test_ker.dispatch(
+            thread_count=[benchmark_buffer_size, 1, 1],
+            vars={
+                "g_gaussian_3d": gaussian_3d_buf,
+                "g_position": position_buf.storage,
+                "g_rotation": rotation_buf.storage,
+                "g_scale": scale_buf.storage,
+            },
+        )
 
         gaussian_2d_buf = device.create_buffer(
             element_count=benchmark_buffer_size,
@@ -376,7 +396,7 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
     benchmark.pedantic(
         ker_proj.dispatch,
         setup=projection_benchmark_setup,
-        rounds=10,
+        rounds=20,
     )
 
 
@@ -390,11 +410,14 @@ def test_culling_benchmark(benchmark, benchmark_buffer_size: int):
     program = device.link_program([module], [module.entry_point("cull")])
     ker_cull = device.create_compute_kernel(program)
 
+    test_module = device.load_module("tests.slang")
+    test_program = device.link_program(
+        [test_module], [test_module.entry_point("loadGaussian2D")]
+    )
+    test_ker = device.create_compute_kernel(test_program)
+
     def culling_benchmark_setup():
         """Setup for the culling benchmark."""
-        gaussians = GaussianCloud()
-        gaussians.randomize(benchmark_buffer_size)
-
         # Create a camera instance.
         cam = Camera(
             rotation=glm.quat(1, 0, 0, 0),
@@ -408,6 +431,30 @@ def test_culling_benchmark(benchmark, benchmark_buffer_size: int):
             struct_type=program.reflection.g_gaussian_2d,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
+        )
+        position_buf = spy.NDBuffer(
+            device, dtype=spy.float3, shape=(benchmark_buffer_size,)
+        )
+        covariance_buf = spy.NDBuffer(
+            device, dtype=spy.float2x2, shape=(benchmark_buffer_size,)
+        )
+        position_arr = np.random.uniform(
+            low=-1.0, high=1.0, size=(benchmark_buffer_size, 3)
+        ).astype(np.float32)
+        covariance_arr = np.random.uniform(
+            low=0.0, high=0.1, size=(benchmark_buffer_size, 2, 2)
+        ).astype(np.float32)
+        covariance_arr = covariance_arr @ covariance_arr.transpose(0, 2, 1)
+        position_buf.copy_from_numpy(position_arr)
+        covariance_buf.copy_from_numpy(covariance_arr)
+
+        test_ker.dispatch(
+            thread_count=[benchmark_buffer_size, 1, 1],
+            vars={
+                "g_gaussian_2d": gaussian_2d_buf,
+                "g_position": position_buf.storage,
+                "g_covariance": covariance_buf.storage,
+            },
         )
 
         inside_flag_buf = device.create_buffer(
@@ -435,5 +482,5 @@ def test_culling_benchmark(benchmark, benchmark_buffer_size: int):
     benchmark.pedantic(
         ker_cull.dispatch,
         setup=culling_benchmark_setup,
-        rounds=10,
+        rounds=20,
     )

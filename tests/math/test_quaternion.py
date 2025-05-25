@@ -211,7 +211,7 @@ def test_quaternion_as_rotation_matrix(buffer_size: int):
     ), "Quaternion to rotation matrix conversion failed."
 
 
-@pytest.fixture(params=[1024, 4096, 16384, 65536, 262144])
+@pytest.fixture(params=[2**i for i in range(10, 20)])
 def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
     """Fixture to provide a buffer size for benchmarking.
 

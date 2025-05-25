@@ -55,3 +55,28 @@ def test_prefix_sum(input_range):
     assert (
         actual == expected
     ), f"prefix_sum failed: got {actual}, expected {expected}"
+
+
+@pytest.fixture(params=[2**i for i in range(10, 20)])
+def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
+    """Fixture to provide a buffer size for benchmarking.
+
+    :param request: The pytest request object.
+    :return: The buffer size.
+    """
+    return request.param
+
+
+def test_prefix_sum_benchmark(benchmark, benchmark_buffer_size: int):
+    """Benchmark the prefix sum function."""
+    input_data = np.random.randint(0, 8, size=benchmark_buffer_size)
+    mod = device.load_module("prefix-sum.slang")
+    prog_scan = device.link_program([mod], [mod.entry_point("wave_scan")])
+    src_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=prog_scan.reflection.wave_scan.src,
+        usage=spy.BufferUsage.shader_resource,
+    )
+    src_buf.copy_from_numpy(input_data.astype(np.uint32))
+
+    benchmark(prefix_sum, src_buf)
