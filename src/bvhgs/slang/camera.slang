@@ -108,11 +108,6 @@ public struct Camera {
     float3 x = this.toRay(u);
     float depth = x.z;
 
-    if (depth < this._nearPlane || depth > this._farPlane) {
-      return Gaussian2D(float3(0, 0, -1), float2x2(0, 0, 0, 0), float3(0, 0, 0),
-                        0);
-    }
-
     // normalize depth
     depth = (depth - this._nearPlane) / (this._farPlane - this._nearPlane);
 
