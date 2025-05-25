@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from bvhgs import device
 from pytest_benchmark.fixture import BenchmarkFixture
+from bvhgs.prefix_sum import prefix_sum
 
 
 def test_tile_computation():
@@ -149,5 +150,120 @@ def test_tile_benchmark(
         vars={
             "g_gaussian_2d_culled": gaussian_2d_buf,
             "g_num_tiles": num_tiles_buf,
+        },
+    )
+
+
+def test_build_gaussian_table_benchmark(
+    benchmark: BenchmarkFixture, benchmark_buffer_size: int
+):
+    """Benchmark the buildGaussianTable kernel with varying buffer sizes.
+
+    :param benchmark: The benchmark fixture.
+    :param benchmark_buffer_size: Size of the buffer for the test.
+    """
+    # Load required modules
+    module = device.load_module("renderer.slang")
+    
+    # Link the buildGaussianTable program and create kernel
+    program_gs_table = device.link_program(
+        [module], [module.entry_point("buildGaussianTable")]
+    )
+    ker_gs_table = device.create_compute_kernel(program_gs_table)
+    
+    # Also need the computeTile program to generate realistic inputs
+    program_tile = device.link_program(
+        [module], [module.entry_point("computeTile")]
+    )
+    ker_tile = device.create_compute_kernel(program_tile)
+    
+    # Create and initialize culled Gaussian2D buffer with random data
+    gaussian_module = device.load_module("tests.slang")
+    program_load = device.link_program(
+        [gaussian_module], [gaussian_module.entry_point("loadGaussian2D")]
+    )
+    ker_load = device.create_compute_kernel(program_load)
+    
+    # Create and setup buffers for positions and covariances
+    positions_buf = spy.NDBuffer(
+        device, dtype=spy.float3, shape=(benchmark_buffer_size,)
+    )
+    covariances_buf = spy.NDBuffer(
+        device, dtype=spy.float2x2, shape=(benchmark_buffer_size,)
+    )
+    
+    # Create Gaussian2D buffer
+    gaussian_2d_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program_load.reflection.loadGaussian2D.gaussians.type_layout.element_type_layout,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
+    
+    # Fill positions and covariances with random data
+    positions = np.random.uniform(
+        -1.0, 1.0, size=(benchmark_buffer_size, 3)
+    ).astype(np.float32)
+    random_matrices = np.random.uniform(
+        -0.1, 0.1, size=(benchmark_buffer_size, 2, 2)
+    )
+    covariances = (
+        np.einsum(
+            "bij,bjk->bik",
+            random_matrices,
+            np.transpose(random_matrices, axes=(0, 2, 1)),
+        )
+        + np.eye(2) * 1e-3
+    )
+    positions_buf.copy_from_numpy(positions)
+    covariances_buf.copy_from_numpy(covariances.astype(np.float32))
+    
+    # Load Gaussian2D data
+    ker_load.dispatch(
+        thread_count=[benchmark_buffer_size, 1, 1],
+        positions=positions_buf.storage,
+        covariances=covariances_buf.storage,
+        gaussians=gaussian_2d_buf,
+    )
+    
+    # Create and compute num_tiles
+    num_tiles_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program_tile.reflection.g_num_tiles.type_layout.element_type_layout,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
+    
+    ker_tile.dispatch(
+        thread_count=[benchmark_buffer_size, 1, 1],
+        vars={
+            "g_gaussian_2d_culled": gaussian_2d_buf,
+            "g_num_tiles": num_tiles_buf,
+        },
+    )
+    
+    # Calculate prefix sum of num_tiles
+    num_tile_prefix_buf = prefix_sum(num_tiles_buf)
+    
+    # Calculate total table size
+    num_tile_arr = num_tiles_buf.to_numpy().view(np.uint32)
+    table_size = np.sum(num_tile_arr).item()
+    
+    # Create gaussian_table buffer
+    gaussian_table_buf = device.create_buffer(
+        element_count=table_size,
+        struct_type=program_gs_table.reflection.g_gaussian_table.type_layout.element_type_layout,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
+    
+    # Benchmark the buildGaussianTable kernel
+    benchmark(
+        ker_gs_table.dispatch,
+        thread_count=[benchmark_buffer_size, 1, 1],
+        vars={
+            "g_gaussian_2d_culled": gaussian_2d_buf,
+            "g_num_tiles_prefix": num_tile_prefix_buf,
+            "g_gaussian_table": gaussian_table_buf,
         },
     )
