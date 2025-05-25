@@ -317,86 +317,73 @@ def test_projection_benchmark(benchmark, benchmark_buffer_size: int):
     ker_proj = device.create_compute_kernel(program)
 
     test_module = device.load_module("tests.slang")
-    test_program = device.link_program(
+    program_load = device.link_program(
         [test_module], [test_module.entry_point("loadGaussian3D")]
     )
-    test_ker = device.create_compute_kernel(test_program)
+    ker_load = device.create_compute_kernel(program_load)
 
-    def projection_benchmark_setup():
-        """Setup for the projection benchmark.
+    gaussians = GaussianCloud()
+    gaussians.randomize(benchmark_buffer_size)
 
-        :param benchmark_buffer_size: Size of the buffer for the test.
-        """
-        gaussians = GaussianCloud()
-        gaussians.randomize(benchmark_buffer_size)
+    # Create a camera instance.
+    cam = Camera(
+        rotation=glm.quat(1, 0, 0, 0),
+        position=glm.vec3(0, 0, 1),
+        sensor_size=glm.uvec2(512, 512),
+        focal_length=64.0,
+    )
 
-        # Create a camera instance.
-        cam = Camera(
-            rotation=glm.quat(1, 0, 0, 0),
-            position=glm.vec3(0, 0, 1),
-            sensor_size=glm.uvec2(512, 512),
-            focal_length=64.0,
-        )
+    gaussian_3d_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program.reflection.g_gaussian_3d,
+        usage=spy.BufferUsage.shader_resource,
+    )
+    position_buf = spy.NDBuffer(
+        device, dtype=spy.float3, shape=(benchmark_buffer_size,)
+    )
+    rotation_buf = spy.NDBuffer(
+        device, dtype=spy.float4, shape=(benchmark_buffer_size,)
+    )
+    scale_buf = spy.NDBuffer(
+        device, dtype=spy.float3, shape=(benchmark_buffer_size,)
+    )
+    position_buf.copy_from_numpy(gaussians.positions)
+    rotation_buf.copy_from_numpy(gaussians.rotations)
+    scale_buf.copy_from_numpy(gaussians.scales)
 
-        gaussian_3d_buf = device.create_buffer(
-            element_count=benchmark_buffer_size,
-            struct_type=program.reflection.g_gaussian_3d,
-            usage=spy.BufferUsage.shader_resource,
-        )
-        position_buf = spy.NDBuffer(
-            device, dtype=spy.float3, shape=(benchmark_buffer_size,)
-        )
-        rotation_buf = spy.NDBuffer(
-            device, dtype=spy.float4, shape=(benchmark_buffer_size,)
-        )
-        scale_buf = spy.NDBuffer(
-            device, dtype=spy.float3, shape=(benchmark_buffer_size,)
-        )
-        position_buf.copy_from_numpy(gaussians.positions)
-        rotation_buf.copy_from_numpy(gaussians.rotations)
-        scale_buf.copy_from_numpy(gaussians.scales)
+    ker_load.dispatch(
+        thread_count=[benchmark_buffer_size, 1, 1],
+        vars={
+            "g_gaussian_3d": gaussian_3d_buf,
+            "g_position": position_buf.storage,
+            "g_rotation": rotation_buf.storage,
+            "g_scale": scale_buf.storage,
+        },
+    )
 
-        test_ker.dispatch(
-            thread_count=[benchmark_buffer_size, 1, 1],
-            vars={
-                "g_gaussian_3d": gaussian_3d_buf,
-                "g_position": position_buf.storage,
-                "g_rotation": rotation_buf.storage,
-                "g_scale": scale_buf.storage,
-            },
-        )
+    gaussian_2d_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program.reflection.g_gaussian_2d,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
 
-        gaussian_2d_buf = device.create_buffer(
-            element_count=benchmark_buffer_size,
-            struct_type=program.reflection.g_gaussian_2d,
-            usage=spy.BufferUsage.shader_resource
-            | spy.BufferUsage.unordered_access,
-        )
+    inside_flag_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program.reflection.g_inside_flag,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
 
-        inside_flag_buf = device.create_buffer(
-            element_count=benchmark_buffer_size,
-            struct_type=program.reflection.g_inside_flag,
-            usage=spy.BufferUsage.shader_resource
-            | spy.BufferUsage.unordered_access,
-        )
-
-        args = ()
-        kwargs = {
-            "thread_count": [benchmark_buffer_size, 1, 1],
-            "vars": {
-                "g_camera": cam.to_slang(),
-                "g_gaussian_3d": gaussian_3d_buf,
-                "g_gaussian_2d": gaussian_2d_buf,
-                "g_inside_flag": inside_flag_buf,
-            },
-        }
-
-        return (args, kwargs)
-
-    benchmark.pedantic(
+    benchmark(
         ker_proj.dispatch,
-        setup=projection_benchmark_setup,
-        rounds=20,
+        thread_count=[benchmark_buffer_size, 1, 1],
+        vars={
+            "g_camera": cam.to_slang(),
+            "g_gaussian_3d": gaussian_3d_buf,
+            "g_gaussian_2d": gaussian_2d_buf,
+            "g_inside_flag": inside_flag_buf,
+        },
     )
 
 
@@ -410,105 +397,95 @@ def test_cull_benchmark(benchmark, benchmark_buffer_size: int):
     program_cull = device.link_program([module], [module.entry_point("cull")])
     ker_cull = device.create_compute_kernel(program_cull)
 
-    test_module = device.load_module("tests.slang")
-    test_program = device.link_program(
-        [test_module], [test_module.entry_point("loadGaussian2D")]
+    program_proj = device.link_program(
+        [module], [module.entry_point("project")]
     )
-    test_ker = device.create_compute_kernel(test_program)
+    ker_proj = device.create_compute_kernel(program_proj)
 
-    def culling_benchmark_setup():
-        """Setup for the culling benchmark."""
-        # Create a camera instance.
-        cam = Camera(
-            rotation=glm.quat(1, 0, 0, 0),
-            position=glm.vec3(0, 0, -1),
-            sensor_size=glm.uvec2(512, 512),
-            focal_length=64.0,
-            near_plane=0.5,
-            far_plane=1000.0,
-        )
+    test_module = device.load_module("tests.slang")
+    program_load = device.link_program(
+        [test_module], [test_module.entry_point("loadGaussian3D")]
+    )
+    ker_load = device.create_compute_kernel(program_load)
 
-        gaussian_3d_buf = device.create_buffer(
-            element_count=benchmark_buffer_size,
-            struct_type=program_proj.reflection.g_gaussian_3d,
-            usage=spy.BufferUsage.shader_resource,
-        )
-        gaussian_cursor = spy.BufferCursor(
-            program_proj.reflection.g_gaussian_3d.type_layout.element_type_layout,
-            gaussian_3d_buf,
-        )
+    # Generate random Gaussian3D data.
+    gaussians = GaussianCloud()
+    gaussians.randomize(benchmark_buffer_size)
+    # Create a camera instance.
+    cam = Camera(
+        rotation=glm.quat(1, 0, 0, 0),
+        position=glm.vec3(0, 0, -1),
+        sensor_size=glm.uvec2(512, 512),
+        focal_length=64.0,
+        near_plane=0.5,
+        far_plane=1000.0,
+    )
 
-        for i in range(len(gaussians)):
-            gaussian_cursor[i].write(gaussians[i])
-        gaussian_cursor.apply()
+    gaussian_3d_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program_proj.reflection.g_gaussian_3d,
+        usage=spy.BufferUsage.shader_resource,
+    )
 
-        gaussian_2d_buf = device.create_buffer(
-            element_count=benchmark_buffer_size,
-            struct_type=program_proj.reflection.g_gaussian_2d,
-            usage=spy.BufferUsage.shader_resource
-            | spy.BufferUsage.unordered_access,
-        )
-        position_buf = spy.NDBuffer(
-            device, dtype=spy.float3, shape=(benchmark_buffer_size,)
-        )
-        covariance_buf = spy.NDBuffer(
-            device, dtype=spy.float2x2, shape=(benchmark_buffer_size,)
-        )
-        position_arr = np.random.uniform(
-            low=-1.0, high=1.0, size=(benchmark_buffer_size, 3)
-        ).astype(np.float32)
-        covariance_arr = np.random.uniform(
-            low=0.0, high=0.1, size=(benchmark_buffer_size, 2, 2)
-        ).astype(np.float32)
-        covariance_arr = covariance_arr @ covariance_arr.transpose(0, 2, 1)
-        position_buf.copy_from_numpy(position_arr)
-        covariance_buf.copy_from_numpy(covariance_arr)
+    gaussian_2d_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program_proj.reflection.g_gaussian_2d,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
 
-        test_ker.dispatch(
-            thread_count=[benchmark_buffer_size, 1, 1],
-            vars={
-                "g_gaussian_2d": gaussian_2d_buf,
-                "g_position": position_buf.storage,
-                "g_covariance": covariance_buf.storage,
-            },
-        )
+    position_buf = spy.NDBuffer(
+        device, dtype=spy.float3, shape=(benchmark_buffer_size,)
+    )
+    rotation_buf = spy.NDBuffer(
+        device, dtype=spy.float4, shape=(benchmark_buffer_size,)
+    )
+    scale_buf = spy.NDBuffer(
+        device, dtype=spy.float3, shape=(benchmark_buffer_size,)
+    )
+    position_buf.copy_from_numpy(gaussians.positions)
+    rotation_buf.copy_from_numpy(gaussians.rotations)
+    scale_buf.copy_from_numpy(gaussians.scales)
 
-        inside_flag_buf = device.create_buffer(
-            element_count=benchmark_buffer_size,
-            struct_type=program_proj.reflection.g_inside_flag,
-            usage=spy.BufferUsage.shader_resource
-            | spy.BufferUsage.unordered_access,
-        )
+    ker_load.dispatch(
+        thread_count=[benchmark_buffer_size, 1, 1],
+        vars={
+            "g_gaussian_3d": gaussian_3d_buf,
+            "g_position": position_buf.storage,
+            "g_rotation": rotation_buf.storage,
+            "g_scale": scale_buf.storage,
+        },
+    )
 
-        ker_proj.dispatch(
-            thread_count=[benchmark_buffer_size, 1, 1],
-            vars={
-                "g_camera": cam.to_slang(),
-                "g_gaussian_3d": gaussian_3d_buf,
-                "g_gaussian_2d": gaussian_2d_buf,
-                "g_inside_flag": inside_flag_buf,
-            },
-        )
-        args = ()
-        g_gaussian_2d_culled_buf = device.create_buffer(
-            element_count=benchmark_buffer_size,
-            struct_type=program_cull.reflection.g_gaussian_2d_culled,
-            usage=spy.BufferUsage.shader_resource
-            | spy.BufferUsage.unordered_access,
-        )
-        kwargs = {
-            "thread_count": [benchmark_buffer_size, 1, 1],
-            "vars": {
-                "g_gaussian_2d_culled": g_gaussian_2d_culled_buf,
-                "g_gaussian_2d": gaussian_2d_buf,
-                "g_inside_flag": inside_flag_buf,
-            },
-        }
+    inside_flag_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program_proj.reflection.g_inside_flag,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
 
-        return (args, kwargs)
+    ker_proj.dispatch(
+        thread_count=[benchmark_buffer_size, 1, 1],
+        vars={
+            "g_camera": cam.to_slang(),
+            "g_gaussian_3d": gaussian_3d_buf,
+            "g_gaussian_2d": gaussian_2d_buf,
+            "g_inside_flag": inside_flag_buf,
+        },
+    )
+    g_gaussian_2d_culled_buf = device.create_buffer(
+        element_count=benchmark_buffer_size,
+        struct_type=program_cull.reflection.g_gaussian_2d_culled,
+        usage=spy.BufferUsage.shader_resource
+        | spy.BufferUsage.unordered_access,
+    )
 
-    benchmark.pedantic(
+    benchmark(
         ker_cull.dispatch,
-        setup=culling_benchmark_setup,
-        rounds=20,
+        thread_count=[benchmark_buffer_size, 1, 1],
+        vars={
+            "g_gaussian_2d_culled": g_gaussian_2d_culled_buf,
+            "g_gaussian_2d": gaussian_2d_buf,
+            "g_inside_flag": inside_flag_buf,
+        },
     )
