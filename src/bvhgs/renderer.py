@@ -1,9 +1,15 @@
+import logging
 import slangpy as spy
+import numpy as np
 
 from bvhgs import device
 from bvhgs.camera import Camera
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.prefix_sum import prefix_sum
+from bvhgs.radix_sort import radix_sort
+
+
+logger = logging.getLogger(__name__)
 
 
 class Renderer:
@@ -107,6 +113,11 @@ class Renderer:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
+        logger.debug(
+            "Rendering %d Gaussian points with camera parameters: %s",
+            len(self.gaussians),
+            camera_params,
+        )
         # Project the Gaussian points to screen space.
         gaussian_2d_buf = device.create_buffer(
             element_count=len(self.gaussians),
@@ -121,8 +132,10 @@ class Renderer:
             | spy.BufferUsage.unordered_access,
         )
 
+        # Align dispatch size with thread group size of 64
+        thread_groups = (len(self.gaussians) + 63) // 64
         self.ker_proj.dispatch(
-            thread_count=[len(self.gaussians), 1, 1],
+            thread_count=[thread_groups * 64, 1, 1],
             vars={
                 "g_camera": camera_params,
                 "g_gaussian_3d": self.gaussian_3d,
@@ -141,12 +154,14 @@ class Renderer:
         # Create a buffer for the culled Gaussian points.
         culled_gaussian_2d_buf = device.create_buffer(
             element_count=num_viewing,
-            struct_type=self.program.reflection.g_gaussian_2d,
+            struct_type=self.program.reflection.g_gaussian_2d_culled,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
+        # Align dispatch size with thread group size of 64
+        thread_groups = (num_viewing + 63) // 64
         self.ker_cull.dispatch(
-            thread_count=[num_viewing, 1, 1],
+            thread_count=[thread_groups * 64, 1, 1],
             vars={
                 "g_gaussian_2d": gaussian_2d_buf,
                 "g_inside_flag": inside_flag_buf,
@@ -154,4 +169,98 @@ class Renderer:
                 "g_gaussian_2d_culled": culled_gaussian_2d_buf,
             },
         )
-        # TODO: Implement the tile and rasterization kernels.
+        # Create tile buffers.
+        num_tile_buf = device.create_buffer(
+            element_count=num_viewing,
+            struct_type=self.program.reflection.g_num_tiles,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        # Align dispatch size with thread group size of 64
+        thread_groups = (num_viewing + 63) // 64
+        self.ker_tile.dispatch(
+            thread_count=[thread_groups * 64, 1, 1],
+            vars={
+                "g_gaussian_2d_culled": culled_gaussian_2d_buf,
+                "g_num_tiles": num_tile_buf,
+            },
+        )
+        # Calculate total number of table entries
+        num_tile_arr = num_tile_buf.to_numpy().view(np.uint32)
+        table_size = np.sum(num_tile_arr).item()
+
+        # Build the Gaussian table.
+        gaussian_table_buf = device.create_buffer(
+            element_count=table_size,
+            struct_type=self.program.reflection.g_gaussian_table,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        num_tile_prefix_buf = prefix_sum(num_tile_buf)
+        # Align dispatch size with thread group size of 64
+        thread_groups = (num_viewing + 63) // 64
+        self.ker_gs_table.dispatch(
+            thread_count=[thread_groups * 64, 1, 1],
+            vars={
+                "g_gaussian_2d_culled": culled_gaussian_2d_buf,
+                "g_num_tiles_prefix": num_tile_prefix_buf,
+                "g_gaussian_table": gaussian_table_buf,
+            },
+        )
+        # Sort tiles.
+        gaussian_table_sorted_buf, hist_buf = radix_sort(
+            gaussian_table_buf, 8, 40
+        )
+        # FIX: Remove numpy sort after radix_sort is fixed.
+        gaussian_table_arr = (
+            gaussian_table_sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)
+        )
+        sort_idx = np.argsort(gaussian_table_arr[:, 0])
+        gaussian_table_arr = gaussian_table_arr[sort_idx]
+        gaussian_table_sorted_buf.copy_from_numpy(gaussian_table_arr)
+        # Duplicate Gaussian points.
+        gaussian_2d_sorted_buf = device.create_buffer(
+            element_count=table_size,
+            struct_type=self.program.reflection.g_gaussian_2d_sorted,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        # Align dispatch size with thread group size of 64
+        thread_groups = (table_size + 63) // 64
+        self.ker_duplicate_gs.dispatch(
+            thread_count=[thread_groups * 64, 1, 1],
+            vars={
+                "g_gaussian_table": gaussian_table_sorted_buf,
+                "g_gaussian_2d_culled": culled_gaussian_2d_buf,
+                "g_gaussian_2d_sorted": gaussian_2d_sorted_buf,
+            },
+        )
+        # Calculate table offset.
+        hist_arr = hist_buf.to_numpy().view(np.uint32)
+        hist_offset = np.zeros_like(hist_arr)
+        hist_offset[1:] = np.cumsum(hist_arr)[:-1]
+        hist_offset_buf = device.create_buffer(
+            element_count=len(hist_offset),
+            struct_type=self.program.reflection.g_tile_offs,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        hist_offset_buf.copy_from_numpy(hist_offset)
+        # Rasterize the Gaussian points.
+        # Align dispatch size with thread group size of [8, 8, 1]
+        thread_groups_x = (self.camera.sensor_size.x + 7) // 8
+        thread_groups_y = (self.camera.sensor_size.y + 7) // 8
+        self.ker_rasterize.dispatch(
+            thread_count=[
+                thread_groups_x * 8,
+                thread_groups_y * 8,
+                1,
+            ],
+            vars={
+                "g_camera": camera_params,
+                "g_tile_hist": hist_buf,
+                "g_tile_offs": hist_offset_buf,
+                "g_gaussian_2d_sorted": gaussian_2d_sorted_buf,
+                "g_render_target": self.render_target,
+            },
+        )

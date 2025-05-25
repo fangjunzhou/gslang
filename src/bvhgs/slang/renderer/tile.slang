@@ -17,7 +17,7 @@ void computeTile(uint tid: SV_DispatchThreadID) {
   minTile.y = max(minTile.y, 0);
   maxTile.x = min(maxTile.x, TILE_SHAPE.x);
   maxTile.y = min(maxTile.y, TILE_SHAPE.y);
-  g_num_tile[tid] = (maxTile.x - minTile.x) * (maxTile.y - minTile.y);
+  g_num_tiles[tid] = (maxTile.x - minTile.x) * (maxTile.y - minTile.y);
 }
 
 [shader("compute")]
@@ -29,7 +29,7 @@ void buildGaussianTable(uint tid: SV_DispatchThreadID) {
   if (tid == 0) {
     tableIdx = 0;
   } else {
-    tableIdx = g_num_tile_prefix[tid - 1];
+    tableIdx = g_num_tiles_prefix[tid - 1];
   }
   // Gaussian depth.
   uint depth = uint(g.position.z * 16384);
