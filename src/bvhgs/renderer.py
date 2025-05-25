@@ -132,10 +132,8 @@ class Renderer:
             | spy.BufferUsage.unordered_access,
         )
 
-        # Align dispatch size with thread group size of 64
-        thread_groups = (len(self.gaussians) + 63) // 64
         self.ker_proj.dispatch(
-            thread_count=[thread_groups * 64, 1, 1],
+            thread_count=[len(self.gaussians), 1, 1],
             vars={
                 "g_camera": camera_params,
                 "g_gaussian_3d": self.gaussian_3d,
@@ -158,10 +156,8 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
-        # Align dispatch size with thread group size of 64
-        thread_groups = (num_viewing + 63) // 64
         self.ker_cull.dispatch(
-            thread_count=[thread_groups * 64, 1, 1],
+            thread_count=[num_viewing, 1, 1],
             vars={
                 "g_gaussian_2d": gaussian_2d_buf,
                 "g_inside_flag": inside_flag_buf,
@@ -176,10 +172,8 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
-        # Align dispatch size with thread group size of 64
-        thread_groups = (num_viewing + 63) // 64
         self.ker_tile.dispatch(
-            thread_count=[thread_groups * 64, 1, 1],
+            thread_count=[num_viewing, 1, 1],
             vars={
                 "g_gaussian_2d_culled": culled_gaussian_2d_buf,
                 "g_num_tiles": num_tile_buf,
@@ -197,10 +191,8 @@ class Renderer:
             | spy.BufferUsage.unordered_access,
         )
         num_tile_prefix_buf = prefix_sum(num_tile_buf)
-        # Align dispatch size with thread group size of 64
-        thread_groups = (num_viewing + 63) // 64
         self.ker_gs_table.dispatch(
-            thread_count=[thread_groups * 64, 1, 1],
+            thread_count=[num_viewing, 1, 1],
             vars={
                 "g_gaussian_2d_culled": culled_gaussian_2d_buf,
                 "g_num_tiles_prefix": num_tile_prefix_buf,
@@ -225,10 +217,8 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
-        # Align dispatch size with thread group size of 64
-        thread_groups = (table_size + 63) // 64
         self.ker_duplicate_gs.dispatch(
-            thread_count=[thread_groups * 64, 1, 1],
+            thread_count=[table_size, 1, 1],
             vars={
                 "g_gaussian_table": gaussian_table_sorted_buf,
                 "g_gaussian_2d_culled": culled_gaussian_2d_buf,
@@ -247,13 +237,10 @@ class Renderer:
         )
         hist_offset_buf.copy_from_numpy(hist_offset)
         # Rasterize the Gaussian points.
-        # Align dispatch size with thread group size of [8, 8, 1]
-        thread_groups_x = (self.camera.sensor_size.x + 7) // 8
-        thread_groups_y = (self.camera.sensor_size.y + 7) // 8
         self.ker_rasterize.dispatch(
             thread_count=[
-                thread_groups_x * 8,
-                thread_groups_y * 8,
+                self.camera.sensor_size.x,
+                self.camera.sensor_size.y,
                 1,
             ],
             vars={
