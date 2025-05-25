@@ -6,7 +6,7 @@ from bvhgs import device
 from bvhgs.camera import Camera
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.prefix_sum import prefix_sum
-from bvhgs.radix_sort import radix_sort
+from bvhgs.radix_sort import radix_sort, stable_radix_sort
 
 
 logger = logging.getLogger(__name__)
@@ -203,16 +203,9 @@ class Renderer:
             },
         )
         # Sort tiles.
-        gaussian_table_sorted_buf, hist_buf = radix_sort(
+        gaussian_table_sorted_buf, hist_buf = stable_radix_sort(
             gaussian_table_buf, 8, 40
         )
-        # FIX: Remove numpy sort after radix_sort is fixed.
-        gaussian_table_arr = (
-            gaussian_table_sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)
-        )
-        sort_idx = np.argsort(gaussian_table_arr[:, 0])
-        gaussian_table_arr = gaussian_table_arr[sort_idx]
-        gaussian_table_sorted_buf.copy_from_numpy(gaussian_table_arr)
         # Duplicate Gaussian points.
         gaussian_2d_sorted_buf = device.create_buffer(
             element_count=table_size,
