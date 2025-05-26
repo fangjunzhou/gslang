@@ -28,6 +28,7 @@ RWStructuredBuffer<Gaussian2D> g_gaussian_2d_sorted;
 
 // Render target.
 RWTexture2D<float4> g_render_target;
+RWTexture2D<float4> g_depth_target;
 
 __include "./renderer/projection.slang";
 __include "./renderer/tile.slang";

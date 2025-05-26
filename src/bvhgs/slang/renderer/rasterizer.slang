@@ -29,6 +29,7 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
   float3 radiance = float3(0, 0, 0);
   // Attenuation factor.
   float attenuation = 1;
+  float depth = 1;
   // Loop over the gaussians in the tile.
   for (uint i = tileOffs; i < tileOffs + tileLength; i++) {
     // Get the gaussian.
@@ -42,10 +43,12 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
     attenuation *= (1 - alpha);
     // If the attenuation is zero, we can stop.
     if (attenuation <= EPS) {
+      depth = g.position.z;
       break;
     }
   }
   // Write the radiance to the render target.
   g_render_target[tid] = float4(radiance, 1);
+  g_depth_target[tid] = float4(float3(depth), 1);
 }
 
