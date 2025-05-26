@@ -84,7 +84,7 @@ class App:
         """Setup ImGui UI elements."""
         screen = self.ui.screen
         window = spy.ui.Window(
-            screen, "BVHGS Controls", size=spy.float2(500, 150)
+            screen, "BVHGS Controls", size=spy.float2(500, 250)
         )
 
         # Add a simple button
@@ -146,6 +146,9 @@ class App:
             max=180.0,
             callback=lambda _: self.update_camera(),
         )
+
+        # Framerate display
+        self.fps_avg = spy.ui.Text(window, f"FPS: 0")
 
     def get_scene_rotation_quat(self) -> glm.quat:
         # Make sure to use scene_rotation directly during initialization
@@ -304,6 +307,8 @@ class App:
             elapsed = timer.elapsed_s()
             timer.reset()
             fps_avg = 0.95 * fps_avg + 0.05 * (1.0 / max(elapsed, 0.001))
+            # Display FPS in integer format
+            self.fps_avg.text = f"FPS: {fps_avg:.0f}"
 
             # Process events
             self.window.process_events()
