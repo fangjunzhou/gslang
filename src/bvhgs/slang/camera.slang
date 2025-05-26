@@ -71,7 +71,7 @@ public struct Camera {
     float z = max(p.z, EPS);
     float inv_z = 1.0 / z;
     float sign = sign(p.z);
-    return float3(p.x * inv_z, p.y * inv_z, length(p) * sign);
+    return float3(p.x * inv_z, p.y * inv_z, p.z);
   }
 
   // Jacobian of the projective transformation.
@@ -87,10 +87,9 @@ public struct Camera {
 
     float3 col1 = float3(0, 1.0 / p.z, (p.y / len) * sign);
 
-    float3 col2 =
-        float3(-p.x / (p.z * p.z), -p.y / (p.z * p.z), (p.z / len) * sign);
+    float3 col2 = float3(0, 0, 0);
 
-    return float3x3(col0, col1, col2);
+    return transpose(float3x3(col0, col1, col2));
   }
 
   // Convert a 3D Gaussian to a 2D Gaussian.
@@ -101,8 +100,7 @@ public struct Camera {
     float3 u = this.toView(g.position);
 
     // Vk'
-    float3x3 Vobj = g.covariance();
-    float3x3 Vcam = mul(this.W, mul(Vobj, transpose(this.W)));
+    float3x3 Vrk = g.covariance();
 
     // to ray space
     float3 x = this.toRay(u);
@@ -112,7 +110,8 @@ public struct Camera {
     depth = (depth - this._nearPlane) / (this._farPlane - this._nearPlane);
 
     float3x3 J = this.toRayJ(u);
-    float3x3 Vk = mul(J, mul(Vcam, transpose(J)));
+    float3x3 T = mul(J, this.W);
+    float3x3 Vk = mul(T, mul(Vrk, transpose(T)));
     float2x2 conv2d = float2x2(Vk[0][0], Vk[0][1], Vk[1][0], Vk[1][1]);
 
     float3 s = float3(this.toScreen(x.xy), depth);

@@ -58,7 +58,8 @@ public struct Gaussian3D : IDifferentiable {
     float3x3 R = quat::asRotMat(rotation);
     float3x3 S = float3x3(float3(scaleExp.x, 0, 0), float3(0, scaleExp.y, 0),
                           float3(0, 0, scaleExp.z));
-    return mul(R, mul(S, mul(transpose(S), transpose(R))));
+    float3x3 M = mul(R, S);
+    return mul(M, transpose(M));
   }
 
   /**
