@@ -6,6 +6,7 @@ from pyglm import glm
 import quaternion
 import argparse
 
+from bvhgs import device
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.camera import Camera
 from bvhgs.renderer import Renderer
@@ -25,7 +26,7 @@ class App:
             title="BVHGS Viewer",
             resizable=False,
         )
-        self.device = spy.Device(enable_debug_layers=True)
+        self.device = device
         self.surface = self.device.create_surface(self.window)
         self.surface.configure(
             width=self.window.width, height=self.window.height
