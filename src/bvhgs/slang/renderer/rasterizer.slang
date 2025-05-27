@@ -1,6 +1,6 @@
 implementing "../renderer.slang";
 
-static const float EPS = 1e-6f;
+static const float EPS = 1e-2f;
 
 // Duplicate the screen space Gaussian for each tile.
 [shader("compute")]
