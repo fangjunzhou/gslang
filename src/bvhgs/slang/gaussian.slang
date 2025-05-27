@@ -15,7 +15,7 @@ static const float C5 = sqrt(21.0 / (2.0 * PI));
 static const float C6 = sqrt(7.0 / PI);
 static const int SH_COUNT = 15;
 
-static const float BBOX_SIZE = 3;
+static const float BBOX_SIZE = 4;
 
 public struct Gaussian3D : IDifferentiable {
   public float3 position;
