@@ -164,9 +164,36 @@ public struct Gaussian2D : IDifferentiable {
     linalg.eigen2x2 eig = linalg.eigen(this.covariance);
     float2 eigenVals = eig.eigenvalues;
     float2x2 eigenVecs = eig.eigenvectors;
-    // Convert to semi-axes.
-    eigenVecs[0] = normalize(eigenVecs[0]) * sqrt(eigenVals.x) * BBOX_SIZE;
-    eigenVecs[1] = normalize(eigenVecs[1]) * sqrt(eigenVals.y) * BBOX_SIZE;
+
+    // Safety check: ensure eigenvalues are positive to avoid NaN from sqrt
+    eigenVals.x = max(eigenVals.x, EPS);
+    eigenVals.y = max(eigenVals.y, EPS);
+
+    // Convert to semi-axes, using safe normalization
+    float len0 = length(eigenVecs[0]);
+    float len1 = length(eigenVecs[1]);
+
+    // Only normalize if length is significant to avoid division by near-zero
+    if (len0 > EPS) {
+      eigenVecs[0] = eigenVecs[0] / len0 * sqrt(eigenVals.x) * BBOX_SIZE;
+    } else {
+      eigenVecs[0] = float2(sqrt(eigenVals.x) * BBOX_SIZE, 0);
+    }
+
+    if (len1 > EPS) {
+      eigenVecs[1] = eigenVecs[1] / len1 * sqrt(eigenVals.y) * BBOX_SIZE;
+    } else {
+      eigenVecs[1] = float2(0, sqrt(eigenVals.y) * BBOX_SIZE);
+    }
+
+    // Ensure orthogonality for numerical stability
+    if (abs(dot(eigenVecs[0], eigenVecs[1])) >
+        EPS * length(eigenVecs[0]) * length(eigenVecs[1])) {
+      eigenVecs[1] =
+          float2(-eigenVecs[0].y, eigenVecs[0].x);  // perpendicular vector
+      eigenVecs[1] =
+          eigenVecs[1] * (sqrt(eigenVals.y) * BBOX_SIZE / length(eigenVecs[1]));
+    }
 
     // Approximate the bounding box of the Gaussian with four axis-aligned
     // rectangles.

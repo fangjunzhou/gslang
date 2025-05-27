@@ -324,6 +324,7 @@ def test_gaussian2d_bounding_box(buffer_shape: Tuple[int]):
         max = bbox["max"]
         width = max.x - min.x
         height = max.y - min.y
+        logger.debug(f"Gaussian {i}: Bounding box: {min} - {max}")
 
         # Calculate the proportion of samples inside the bounding box.
         inside = np.logical_and(
@@ -337,10 +338,6 @@ def test_gaussian2d_bounding_box(buffer_shape: Tuple[int]):
         # Log the gaussian parameters.
         logger.debug(f"Gaussian {i}: Position: {mean}")
         logger.debug(f"Gaussian {i}: Covariance: {cov * 100}")
-        assert (
-            proportion_inside > 0.9
-        ), f"Proportion of samples inside bounding box for Gaussian {i} is too low."
-
         if logger.getEffectiveLevel() <= logging.DEBUG:
             # Draw the gaussian to a plot.
             fig, ax = plt.subplots()
@@ -371,3 +368,7 @@ def test_gaussian2d_bounding_box(buffer_shape: Tuple[int]):
             ax.add_patch(rect)
 
             plt.savefig(f".tests/gaussian2d_bbox_{i}.png")
+
+        assert (
+            proportion_inside > 0.9
+        ), f"Proportion of samples inside bounding box for Gaussian {i} is too low."
