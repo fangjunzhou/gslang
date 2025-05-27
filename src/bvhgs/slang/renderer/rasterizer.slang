@@ -13,6 +13,7 @@ void duplicateGaussian(uint tid: SV_DispatchThreadID) {
 [shader("compute")]
 [numthreads(8, 8, 1)]
 void rasterize(uint2 tid: SV_DispatchThreadID) {
+  if (tid.x >= g_camera.sensorSize.x || tid.y >= g_camera.sensorSize.y) return;
   // Convert pixel coordinate to screen space uv.
   float2 uv = (float2(tid) + 0.5f) / float2(g_camera.sensorSize);
   uv.y = 1 - uv.y;  // Flip y coordinate to match the screen.

@@ -75,7 +75,8 @@ class GaussianCloud:
         self.rotations = np.random.rand(size, 4).astype(np.float32)
         # Normalize the rotations
         self.rotations /= np.linalg.norm(self.rotations, axis=1, keepdims=True)
-        self.scales = np.random.randn(size, 3).astype(np.float32) + scale_offst
+        self.scales = np.random.randn(size, 1).astype(np.float32) + scale_offst
+        self.scales = np.tile(self.scales, (1, 3))
 
         self.colors = np.random.randn(size, 3).astype(np.float32)
         self.opacities = np.random.randn(size, 1).astype(np.float32)
