@@ -137,13 +137,14 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
 [numthreads(64, 1, 1)]
 void extractSortedGaussianGrad(uint tid: SV_DispatchThreadID) {
   // Extract the gradient of the sorted Gaussian.
-  d_gaussian_2d_sorted[tid] = Gaussian2D(d_a_gaussian_2d_sorted[tid]);
+  d_gaussian_2d_sorted[tid] =
+      Gaussian2D.fromAtomic(d_a_gaussian_2d_sorted[tid]);
 }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void gradDescentGaussian2D(uint tid: SV_DispatchThreadID, uniform float lr) {
-  Gaussian2D gd = Gaussian2D(d_a_gaussian_2d_sorted[tid]);
+  Gaussian2D gd = Gaussian2D.fromAtomic(d_a_gaussian_2d_sorted[tid]);
   // Update the Gaussian parameters using gradient descent.
   g_gaussian_2d_sorted[tid] = g_gaussian_2d_sorted[tid] - (lr * gd);
 }
