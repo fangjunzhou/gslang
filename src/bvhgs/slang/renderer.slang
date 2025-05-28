@@ -39,5 +39,6 @@ RWStructuredBuffer<Gaussian2D> d_gaussian_2d_culled;
 // World space gaussian gradient.
 RWStructuredBuffer<Gaussian3D> d_gaussian_3d;
 
+__include "./renderer/projection.slang";
 __include "./renderer/tile.slang";
 __include "./renderer/rasterizer.slang";
