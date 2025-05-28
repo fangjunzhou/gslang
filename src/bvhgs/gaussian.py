@@ -135,10 +135,41 @@ class GaussianCloud:
 
         self.num_gaussians = N
 
-    def load_from_colmap(self, path: pathlib.Path):
+    def load_from_colmap(self, path: pathlib.Path, scale_factor: float = -3.0):
         """Load a Gaussian point cloud from a COLMAP sparse file.
 
         :param path: path to the COLMAP sparse file.
         """
-        # TODO: Implement loading from COLMAP file
-        pass
+        if not path.exists():
+            raise FileNotFoundError(f"Directory {path} does not exist.")
+
+        maps = pycolmap.Reconstruction(str(path))
+        num_points = len(maps.points3D)
+        points = np.empty((num_points, 3))
+        colors = np.empty((num_points, 3))
+
+        # Extract point cloud.
+        for i, point in enumerate(maps.points3D.values()):
+            points[i] = point.xyz
+            colors[i] = point.color
+        # Filter points within 10 units.
+        dists = np.linalg.norm(points, axis=1)
+        points = points[dists <= 10, :]
+        colors = colors[dists <= 10, :]
+        # Scale colors to [0, 1]
+        colors = colors / 256
+
+        # inverse sigmoid
+        colors = np.log(colors / (1 - colors + 1e-5) + 1e-5)
+
+        self.positions = np.ascontiguousarray(points, dtype=np.float32)
+        rotation = [0, 0, 0, 1]  # Identity quaternion
+        self.rotations = np.tile(rotation, (len(points), 1)).astype(np.float32)
+        self.scales = np.ones((len(points), 3), dtype=np.float32) * scale_factor
+        self.colors = np.ascontiguousarray(colors, dtype=np.float32)
+        # opacity=0.5
+        self.opacities = np.full((len(points), 1), 0, dtype=np.float32)
+        self.spherical_harmonics = np.zeros(
+            (len(points), 15, 3), dtype=np.float32
+        )
+        self.num_gaussians = len(points)

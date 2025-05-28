@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 SHADER_PATH = pathlib.Path(__file__).parent / "slang"
 device = spy.create_device(
+    type=spy.DeviceType.vulkan,
     include_paths=[SHADER_PATH.absolute()], enable_print=True
 )
 logger.info(f"Slang device created: {device}")
