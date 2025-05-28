@@ -33,6 +33,7 @@ RWTexture2D<float4> g_depth_target;
 // Render target gradient.
 RWTexture2D<float4> d_render_target;
 // Sorted screen space gaussian gradient.
+RWStructuredBuffer<Gaussian2DAtomic> d_a_gaussian_2d_sorted;
 RWStructuredBuffer<Gaussian2D> d_gaussian_2d_sorted;
 // Culled screen space gaussian gradient.
 RWStructuredBuffer<Gaussian2D> d_gaussian_2d_culled;
