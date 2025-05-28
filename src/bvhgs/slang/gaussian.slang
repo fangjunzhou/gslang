@@ -265,7 +265,7 @@ public struct Gaussian2DAtomic {
   }
 
   [mutating]
-  Gaussian2D toGaussian2D() {
+  public Gaussian2D toGaussian2D() {
     float3 position = float3(this.position[0].load(), this.position[1].load(),
                              this.position[2].load());
     float2x2 covariance =

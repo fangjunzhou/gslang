@@ -126,3 +126,18 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
   g_render_target[tid] = float4(radiance, 1);
   g_depth_target[tid] = float4(float3(depth), 1);
 }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void extractSortedGaussianGrad(uint tid: SV_DispatchThreadID) {
+  // Extract the gradient of the sorted Gaussian.
+  Gaussian2DAtomic gAtomic = d_a_gaussian_2d_sorted[tid];
+  d_gaussian_2d_sorted[tid] = gAtomic.toGaussian2D();
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void gradDescentGaussian2D(uint tid: SV_DispatchThreadID, uniform float lr) {
+  Gaussian2DAtomic gAtomic = d_a_gaussian_2d_sorted[tid];
+  Gaussian2D g = gAtomic.toGaussian2D();
+}
