@@ -3,13 +3,19 @@ implementing "../renderer.slang";
 static const float EPS = 1e-2f;
 
 [Differentiable]
-void calculateRadiance(Gaussian2D g, no_diff float2 uv, out float3 radiance,
-                       out float alpha) {
+float calculateAlpha(Gaussian2D g, no_diff float2 uv) {
   // Evaluate the Gaussian at the given UV coordinate.
   float sig = g.eval(uv);
   // Calculate the radiance contribution.
-  alpha = 1 - exp(-sig * g.opacity);
-  radiance = alpha * g.color;
+  float alpha = 1 - exp(-sig * g.opacity);
+  return alpha;
+}
+
+[Differentiable]
+float3 calculateRadiance(Gaussian2D g, float alpha) {
+  // Calculate the radiance contribution.
+  float3 radiance = g.color * alpha;
+  return radiance;
 }
 
 // Duplicate the screen space Gaussian for each tile.
@@ -41,20 +47,22 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
   // Attenuation factor.
   float attenuation = 1;
   float depth = 1;
+  g_num_rendered_gaussians[tid] = tileLength;
   // Loop over the gaussians in the tile.
   for (uint i = tileOffs; i < tileOffs + tileLength; i++) {
     // Get the gaussian.
     Gaussian2D g = g_gaussian_2d_sorted[i];
     float3 gaussianRadiance;
-    float alpha;
     // Evaluate the Gaussian and calculate radiance contribution.
-    calculateRadiance(g, uv, gaussianRadiance, alpha);
+    float alpha = calculateAlpha(g, uv);
+    gaussianRadiance = calculateRadiance(g, alpha);
     radiance += attenuation * gaussianRadiance;
     // Accumulate the attenuation.
     attenuation *= (1 - alpha);
     // If the attenuation is zero, we can stop.
     if (attenuation <= EPS) {
       depth = g.position.z;
+      g_num_rendered_gaussians[tid] = i - tileOffs + 1;
       break;
     }
   }
@@ -87,57 +95,55 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
   // Rasterize all the 2D gaussians in the tile.
   // Accumulate radiance.
   float3 radiance = float3(0, 0, 0);
+  float3 dRadiance = d_render_target[tid].xyz;
   // Attenuation factor.
   float attenuation = 1;
   float depth = 1;
   // Loop over the gaussians in the tile.
-  for (uint i = tileOffs; i < tileOffs + tileLength; i++) {
+  uint n = g_num_rendered_gaussians[tid];
+  for (uint idx = 0; idx < n; idx++) {
+    // if (idx >= n) continue; // Skip gaussians that were not rendered.
+    uint i = tileOffs + tileLength - idx;
+
     // Get the gaussian.
     Gaussian2D g = g_gaussian_2d_sorted[i];
     DifferentialPair<Gaussian2D> g_pair = diffPair(g);
-    float3 gaussianRadiance;
-    float alpha;
+
     // Evaluate the Gaussian and calculate radiance contribution.
-    calculateRadiance(g, uv, gaussianRadiance, alpha);
-    float alphaGrad = 0;
-    if (i < tileOffs + tileLength - 1) {
-      // Calculate the gradient to the next radiance.
-      float3 gaussianRadianceNext;
-      float alphaNext;
-      calculateRadiance(g_gaussian_2d_sorted[i + 1], uv, gaussianRadianceNext,
-                        alphaNext);
-      float attenuationNextGrad =
-          dot(gaussianRadianceNext, d_render_target[tid].xyz);
-      alphaGrad = -attenuationNextGrad * attenuation;
+    float alpha = calculateAlpha(g, uv);
+    float3 gaussianRadiance = calculateRadiance(g, alpha);
+
+    float3 dGaussianRadiance = attenuation * dRadiance;
+    DifferentialPair<float> alphaPair = diffPair(alpha);
+    bwd_diff(calculateRadiance)(g_pair, alphaPair, dGaussianRadiance);
+
+    alphaPair.d.add(-dot(dRadiance, radiance) * attenuation);
+
+    bwd_diff(calculateAlpha)(g_pair, uv, alphaPair.d);
+
+    float[11] d = g_pair.d.toArray();
+    for (uint j = 0; j < 11; j++) {
+      d_a_gaussian_2d_sorted[i][j].add(d[j]);
     }
-    bwd_diff(calculateRadiance)(
-        g_pair, uv, d_render_target[tid].xyz * attenuation, alphaGrad);
-    d_a_gaussian_2d_sorted[i].add(g_pair.d);
-    radiance += attenuation * gaussianRadiance;
-    // Accumulate the attenuation.
+
+    radiance = radiance * (1 - alpha);
+    radiance += gaussianRadiance;
+
     attenuation = attenuation * (1 - alpha);
-    // If the attenuation is zero, we can stop.
-    if (attenuation <= EPS) {
-      depth = g.position.z;
-      break;
-    }
   }
-  // Write the radiance to the render target.
-  g_render_target[tid] = float4(radiance, 1);
-  g_depth_target[tid] = float4(float3(depth), 1);
 }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void extractSortedGaussianGrad(uint tid: SV_DispatchThreadID) {
   // Extract the gradient of the sorted Gaussian.
-  Gaussian2DAtomic gAtomic = d_a_gaussian_2d_sorted[tid];
-  d_gaussian_2d_sorted[tid] = gAtomic.toGaussian2D();
+  d_gaussian_2d_sorted[tid] = Gaussian2D(d_a_gaussian_2d_sorted[tid]);
 }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void gradDescentGaussian2D(uint tid: SV_DispatchThreadID, uniform float lr) {
-  Gaussian2DAtomic gAtomic = d_a_gaussian_2d_sorted[tid];
-  Gaussian2D g = gAtomic.toGaussian2D();
+  Gaussian2D gd = Gaussian2D(d_a_gaussian_2d_sorted[tid]);
+  // Update the Gaussian parameters using gradient descent.
+  g_gaussian_2d_sorted[tid] = g_gaussian_2d_sorted[tid] - (lr * gd);
 }

@@ -137,7 +137,7 @@ class GaussianCloud:
 
         self.num_gaussians = N
 
-    def load_from_colmap(self, path: pathlib.Path):
+    def load_from_colmap(self, path: pathlib.Path, scale_factor: float = -3.0):
         """Load a Gaussian point cloud from a COLMAP sparse file.
 
         :param path: dir to the COLMAP sparse file.
@@ -167,7 +167,7 @@ class GaussianCloud:
         self.positions = np.ascontiguousarray(points, dtype=np.float32)
         rotation = [0, 0, 0, 1]  # Identity quaternion
         self.rotations = np.tile(rotation, (len(points), 1)).astype(np.float32)
-        self.scales = np.ones((len(points), 3), dtype=np.float32) * -3
+        self.scales = np.ones((len(points), 3), dtype=np.float32) * scale_factor
         self.colors = np.ascontiguousarray(colors, dtype=np.float32)
         # opacity=0.5
         self.opacities = np.full((len(points), 1), 0, dtype=np.float32)
