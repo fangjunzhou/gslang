@@ -75,6 +75,10 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
 [numthreads(64, 1, 1)]
 void bwdDuplicateGaussian(uint tid: SV_DispatchThreadID) {
   // TODO: Implement the backward pass for duplicating the Gaussian.
+  uint gid = g_gaussian_table[tid].val;
+  for (uint j = 0; j < 11; j++) {
+    d_a_gaussian_2d_culled[gid][j].add(d_a_gaussian_2d_sorted[tid][j].load());
+  }
 }
 
 [shader("compute")]
@@ -139,6 +143,14 @@ void extractSortedGaussianGrad(uint tid: SV_DispatchThreadID) {
   // Extract the gradient of the sorted Gaussian.
   d_gaussian_2d_sorted[tid] =
       Gaussian2D.fromAtomic(d_a_gaussian_2d_sorted[tid]);
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void extractCulledGaussianGrad(uint tid: SV_DispatchThreadID) {
+  // Extract the gradient of the culled Gaussian.
+  d_gaussian_2d_culled[tid] =
+      Gaussian2D.fromAtomic(d_a_gaussian_2d_culled[tid]);
 }
 
 [shader("compute")]
