@@ -30,6 +30,14 @@ RWStructuredBuffer<Gaussian2D> g_gaussian_2d_sorted;
 RWTexture2D<float4> g_render_target;
 RWTexture2D<float4> g_depth_target;
 
-__include "./renderer/projection.slang";
+// Render target gradient.
+RWTexture2D<float4> d_render_target;
+// Sorted screen space gaussian gradient.
+RWStructuredBuffer<Gaussian2D> d_gaussian_2d_sorted;
+// Culled screen space gaussian gradient.
+RWStructuredBuffer<Gaussian2D> d_gaussian_2d_culled;
+// World space gaussian gradient.
+RWStructuredBuffer<Gaussian3D> d_gaussian_3d;
+
 __include "./renderer/tile.slang";
 __include "./renderer/rasterizer.slang";

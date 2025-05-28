@@ -113,6 +113,18 @@ public struct Gaussian3D : IDifferentiable {
   }
 };
 
+Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
+  return Gaussian3D(a.position + b.position, a.rotation + b.rotation,
+                    a.scale + b.scale, a.color + b.color, a.opacity + b.opacity,
+                    a.sh);
+}
+
+Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
+  return Gaussian3D(a.position - b.position, a.rotation - b.rotation,
+                    a.scale - b.scale, a.color - b.color, a.opacity - b.opacity,
+                    a.sh);
+}
+
 public struct Gaussian2D : IDifferentiable {
   // Gaussian position in normalized device coordinates.
   public float3 position;
@@ -215,3 +227,13 @@ public struct Gaussian2D : IDifferentiable {
     return BoundingBox2D(bMin, bMax);
   }
 };
+
+Gaussian2D operator +(Gaussian2D a, Gaussian2D b) {
+  return Gaussian2D(a.position + b.position, a.covariance + b.covariance,
+                    a.color + b.color, a.opacity + b.opacity);
+}
+
+Gaussian2D operator -(Gaussian2D a, Gaussian2D b) {
+  return Gaussian2D(a.position - b.position, a.covariance - b.covariance,
+                    a.color - b.color, a.opacity - b.opacity);
+}

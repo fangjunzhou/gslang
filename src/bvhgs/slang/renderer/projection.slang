@@ -32,3 +32,9 @@ void cull(uint tid: SV_DispatchThreadID) {
     g_gaussian_2d_culled[idx] = g_gaussian_2d[tid];
   }
 }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void bwdCullProjection(uint tid: SV_DispatchThreadID) {
+  // TODO: Implement the backward pass for culling and projection.
+}

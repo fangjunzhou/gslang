@@ -53,3 +53,14 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
   g_depth_target[tid] = float4(float3(depth), 1);
 }
 
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void bwdDuplicateGaussian(uint tid: SV_DispatchThreadID) {
+  // TODO: Implement the backward pass for duplicating the Gaussian.
+}
+
+[shader("compute")]
+[numthreads(8, 8, 1)]
+void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
+  // TODO: Implement the backward pass for rasterization.
+}

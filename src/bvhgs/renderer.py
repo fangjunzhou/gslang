@@ -17,6 +17,7 @@ class Renderer:
     camera: Camera
 
     gaussian_3d: spy.Buffer
+    gaussian_3d_grad: spy.Buffer
     render_target: spy.Texture
     depth_target: spy.Texture
     tile_heat_map: np.ndarray
@@ -127,7 +128,7 @@ class Renderer:
             gaussian_cursor[i].write(gaussians[i])
         gaussian_cursor.apply()
 
-    def render(self) -> None:
+    def render(self, with_grad: bool = False) -> None:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
@@ -279,3 +280,7 @@ class Renderer:
                 "g_depth_target": self.depth_target,
             },
         )
+
+        if with_grad:
+            # TODO: Implement gradient rendering.
+            pass
