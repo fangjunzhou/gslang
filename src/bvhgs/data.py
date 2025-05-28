@@ -53,7 +53,8 @@ class SFMDataset:
             assert colmap_cam is not None
             # Get camera pose.
             pose = image.cam_from_world.inverse()
-            rotation = glm.quat(pose.rotation.quat)
+            pose_quat = pose.rotation.quat
+            rotation = glm.quat(pose_quat[3], pose_quat[0], pose_quat[1], pose_quat[2])
             position = glm.vec3(pose.translation)
             # Get camera intrinsics.
             sx = colmap_cam.width
