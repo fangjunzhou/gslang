@@ -228,12 +228,52 @@ public struct Gaussian2D : IDifferentiable {
   }
 };
 
-Gaussian2D operator +(Gaussian2D a, Gaussian2D b) {
-  return Gaussian2D(a.position + b.position, a.covariance + b.covariance,
-                    a.color + b.color, a.opacity + b.opacity);
-}
+public struct Gaussian2DAtomic {
+  public Atomic<float>[3] position;
 
-Gaussian2D operator -(Gaussian2D a, Gaussian2D b) {
-  return Gaussian2D(a.position - b.position, a.covariance - b.covariance,
-                    a.color - b.color, a.opacity - b.opacity);
-}
+  public Atomic<float> [2][2] covariance;
+  public Atomic<float>[3] color;
+  public Atomic<float> opacity;
+
+  __init(Gaussian2D g) {
+    this.position[0] = g.position.x;
+    this.position[1] = g.position.y;
+    this.position[2] = g.position.z;
+    this.covariance[0][0] = g.covariance[0][0];
+    this.covariance[0][1] = g.covariance[0][1];
+    this.covariance[1][0] = g.covariance[1][0];
+    this.covariance[1][1] = g.covariance[1][1];
+    this.color[0] = g.color.x;
+    this.color[1] = g.color.y;
+    this.color[2] = g.color.z;
+    this.opacity = g.opacity;
+  }
+
+  [mutating]
+  public void add(Gaussian2D g) {
+    this.position[0].add(g.position.x);
+    this.position[1].add(g.position.y);
+    this.position[2].add(g.position.z);
+    this.covariance[0][0].add(g.covariance[0][0]);
+    this.covariance[0][1].add(g.covariance[0][1]);
+    this.covariance[1][0].add(g.covariance[1][0]);
+    this.covariance[1][1].add(g.covariance[1][1]);
+    this.color[0].add(g.color.x);
+    this.color[1].add(g.color.y);
+    this.color[2].add(g.color.z);
+    this.opacity.add(g.opacity);
+  }
+
+  [mutating]
+  Gaussian2D toGaussian2D() {
+    float3 position = float3(this.position[0].load(), this.position[1].load(),
+                             this.position[2].load());
+    float2x2 covariance =
+        float2x2(this.covariance[0][0].load(), this.covariance[0][1].load(),
+                 this.covariance[1][0].load(), this.covariance[1][1].load());
+    float3 color = float3(this.color[0].load(), this.color[1].load(),
+                          this.color[2].load());
+    float opacity = this.opacity.load();
+    return Gaussian2D(position, covariance, color, opacity);
+  }
+};
