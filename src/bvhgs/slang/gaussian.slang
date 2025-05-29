@@ -303,7 +303,6 @@ public Gaussian2D operator*(Gaussian2D g, float s) {
                     g.opacity * s);
 }
 public Gaussian2D operator*(float s, Gaussian2D g) {
-  Waveactivesu
   return Gaussian2D(g.position * s, g.covariance * (s * s), g.color * s,
                     g.opacity * s);
 }
