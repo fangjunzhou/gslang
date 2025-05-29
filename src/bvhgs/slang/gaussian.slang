@@ -55,7 +55,7 @@ public struct Gaussian3D : IDifferentiable {
   [Differentiable]
   public float3x3 covariance() {
     float3 scaleExp = this.scaleExp();
-    float3x3 R = quat::asRotMat(rotation);
+    float3x3 R = quat::asRotMat(this.rotation);
     float3x3 S = float3x3(float3(scaleExp.x, 0, 0), float3(0, scaleExp.y, 0),
                           float3(0, 0, scaleExp.z));
     float3x3 M = mul(R, S);
@@ -113,13 +113,13 @@ public struct Gaussian3D : IDifferentiable {
   }
 };
 
-public Gaussian3D operator+(Gaussian3D a, Gaussian3D b) {
+public Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
   return Gaussian3D(a.position + b.position, a.rotation + b.rotation,
                     a.scale + b.scale, a.color + b.color, a.opacity + b.opacity,
                     a.sh);
 }
 
-public Gaussian3D operator-(Gaussian3D a, Gaussian3D b) {
+public Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
   return Gaussian3D(a.position - b.position, a.rotation - b.rotation,
                     a.scale - b.scale, a.color - b.color, a.opacity - b.opacity,
                     a.sh);
@@ -135,11 +135,10 @@ public Gaussian3D operator*(float s, Gaussian3D g) {
                     g.opacity * s, g.sh);
 }
 
-public Gaussian3D operator/(Gaussian3D g, float s) {
+public Gaussian3D operator /(Gaussian3D g, float s) {
   return Gaussian3D(g.position / s, g.rotation, g.scale / s, g.color / s,
                     g.opacity / s, g.sh);
 }
-
 
 public struct Gaussian2D : IDifferentiable {
   // Gaussian position in normalized device coordinates.
@@ -152,8 +151,6 @@ public struct Gaussian2D : IDifferentiable {
   // Gaussian opacity.
   public float opacity;
 
-  float2x2 cachedInvCov;
-
   [Differentiable]
   public __init(float3 position = float3(0, 0, 0),
                 float2x2 covariance = float2x2(1, 0, 0, 1),
@@ -163,15 +160,17 @@ public struct Gaussian2D : IDifferentiable {
 
     this.color = color;
     this.opacity = opacity;
+  }
 
-    // cache to avoid recomputing
+  [Differentiable]
+  float2x2 invCov() {
     float a = this.covariance[0][0];
     float b = this.covariance[0][1];
     float c = this.covariance[1][0];
     float d = this.covariance[1][1];
 
-    float det = a * d - b * c; // + EPS;  // add EPS to avoid division by zero
-    this.cachedInvCov = float2x2(d / det, -b / det, -c / det, a / det);
+    float det = a * d - b * c;
+    return float2x2(d / det, -b / det, -c / det, a / det);
   }
 
   // Evaluate the Gaussian at a given point in normalized device coordinates.
@@ -179,7 +178,7 @@ public struct Gaussian2D : IDifferentiable {
   public float eval(float2 uv) {
     // exp(-0.5 * (uv - position)^T * inv(cov) * (uv - position))
     float2 diff = uv - this.position.xy;
-    float val = -0.5 * dot(diff, mul(this.cachedInvCov, diff));
+    float val = -0.5 * dot(diff, mul(this.invCov(), diff));
     return exp(val);
   }
 
@@ -283,15 +282,8 @@ public struct Gaussian2D : IDifferentiable {
     float3 color = float3(atomicGaussian[7].load(), atomicGaussian[8].load(),
                           atomicGaussian[9].load());
     float opacity = atomicGaussian[10].load();
-    
+
     Gaussian2D g = Gaussian2D(position, covariance, color, opacity);
-
-    float det = g.covariance[0][0] * g.covariance[1][1] -
-          g.covariance[0][1] * g.covariance[1][0];
-
-    if (det < EPS) {
-      g.cachedInvCov = float2x2(0);
-    }
     return g;
   }
 };
