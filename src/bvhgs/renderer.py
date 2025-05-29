@@ -210,7 +210,7 @@ class Renderer:
     def image_loss(self, src: jnp.ndarray, dst: jnp.ndarray):
         return jnp.mean((dst - src)**2)
 
-    def render(self, gt_image: Image.Image | None = None) -> None:
+    def render(self, gt_image: Image.Image | None = None) -> float:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
@@ -399,7 +399,7 @@ class Renderer:
             raw_image = jnp.array(self.render_target.to_numpy()[:, :, :3])
             loss, render_target_grad = self.loss_grad(raw_image, self.image_arr)
 
-            print(f"Loss after gradient descent: {loss}")
+            #print(f"Loss after gradient descent: {loss}")
 
             rg_shape = render_target_grad.shape
             render_target_grad = jnp.concatenate((render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))), axis=-1)
@@ -461,7 +461,8 @@ class Renderer:
                     "d_gaussian_3d": self.gaussian_3d_grad_buf,
                 }
             )
-        
+            return loss
+        return 0
             
             
                     
