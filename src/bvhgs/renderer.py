@@ -367,8 +367,6 @@ class Renderer:
         if with_grad:
             if self.image_arr.size == 0:
                 raise ValueError("Ground truth image not set for gradient descent.")
-            
-            
             a_gaussian_2d_sorted_grad_buf = device.create_buffer(
                 element_count=table_size,
                 struct_type=self.program.reflection.d_a_gaussian_2d_sorted,
@@ -482,18 +480,10 @@ class Renderer:
                 "d_gaussian_3d": self.gaussian_3d_grad_buf,
             }
         )
-        gaussian_cursor = spy.BufferCursor(
-            self.program.reflection.g_gaussian_3d.type_layout.element_type_layout,
-            self.gaussian_3d,
-        )
         gaussian_grad_cursor = spy.BufferCursor(
             self.program.reflection.d_gaussian_3d.type_layout.element_type_layout,
             self.gaussian_3d_grad_buf,
         )
-        # print("Updated Gaussian points after gradient descent:")
-        # # print the updated Gaussian points.
-        # for i in range(len(self.gaussians)):
-        #     print(gaussian_cursor[i].read())
         
         print("Gaussian gradients after gradient descent:")
         # print the Gaussian gradients.
