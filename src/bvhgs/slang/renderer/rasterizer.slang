@@ -74,10 +74,11 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void bwdDuplicateGaussian(uint tid: SV_DispatchThreadID) {
-  // TODO: Implement the backward pass for duplicating the Gaussian.
   uint gid = g_gaussian_table[tid].val;
+  Gaussian2D d_g = d_gaussian_2d_sorted[tid];
+  float[11] d_g_a = d_g.toArray();
   for (uint j = 0; j < 11; j++) {
-    d_a_gaussian_2d_culled[gid][j].add(d_a_gaussian_2d_sorted[tid][j].load());
+    d_a_gaussian_2d_culled[gid][j].add(d_g_a[j]);
   }
 }
 
@@ -156,7 +157,14 @@ void extractCulledGaussianGrad(uint tid: SV_DispatchThreadID) {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void gradDescentGaussian2D(uint tid: SV_DispatchThreadID, uniform float lr) {
-  Gaussian2D gd = Gaussian2D.fromAtomic(d_a_gaussian_2d_sorted[tid]);
+  Gaussian2D gd = d_gaussian_2d_sorted[tid];
   // Update the Gaussian parameters using gradient descent.
   g_gaussian_2d_sorted[tid] = g_gaussian_2d_sorted[tid] - (lr * gd);
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr) {
+  Gaussian3D gd = d_gaussian_3d[tid];
+  g_gaussian_3d[tid] = g_gaussian_3d[tid] - (lr * gd);
 }

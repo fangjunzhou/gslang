@@ -113,17 +113,33 @@ public struct Gaussian3D : IDifferentiable {
   }
 };
 
-Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
+public Gaussian3D operator+(Gaussian3D a, Gaussian3D b) {
   return Gaussian3D(a.position + b.position, a.rotation + b.rotation,
                     a.scale + b.scale, a.color + b.color, a.opacity + b.opacity,
                     a.sh);
 }
 
-Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
+public Gaussian3D operator-(Gaussian3D a, Gaussian3D b) {
   return Gaussian3D(a.position - b.position, a.rotation - b.rotation,
                     a.scale - b.scale, a.color - b.color, a.opacity - b.opacity,
                     a.sh);
 }
+
+public Gaussian3D operator*(Gaussian3D g, float s) {
+  return Gaussian3D(g.position * s, g.rotation, g.scale * s, g.color * s,
+                    g.opacity * s, g.sh);
+}
+
+public Gaussian3D operator*(float s, Gaussian3D g) {
+  return Gaussian3D(g.position * s, g.rotation, g.scale * s, g.color * s,
+                    g.opacity * s, g.sh);
+}
+
+public Gaussian3D operator/(Gaussian3D g, float s) {
+  return Gaussian3D(g.position / s, g.rotation, g.scale / s, g.color / s,
+                    g.opacity / s, g.sh);
+}
+
 
 public struct Gaussian2D : IDifferentiable {
   // Gaussian position in normalized device coordinates.

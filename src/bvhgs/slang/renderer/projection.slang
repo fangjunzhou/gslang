@@ -7,12 +7,17 @@ inline bool aabb_overlaps_unit_rect(float2 bbMin, float2 bbMax) {
   return true;
 }
 
+[Differentiable]
+Gaussian2D toGaussian2D(Gaussian3D g3d) {
+  return g_camera.toGaussian2D(g3d);
+}
+
 // Project 3D Gaussians to ray space and set cull flag.
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void project(uint tid: SV_DispatchThreadID) {
   // Project the 3D Gaussian to screen space.
-  Gaussian2D g2d = g_camera.toGaussian2D(g_gaussian_3d[tid]);
+  Gaussian2D g2d = toGaussian2D(g_gaussian_3d[tid]);
   g_gaussian_2d[tid] = g2d;
   // Cull the 2D Gaussian to the viewing frustum.
   bool depthOK = (g2d.position.z >= 0.0) && (g2d.position.z <= 1.0);
@@ -36,5 +41,15 @@ void cull(uint tid: SV_DispatchThreadID) {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void bwdCullProjection(uint tid: SV_DispatchThreadID) {
-  // TODO: Implement the backward pass for culling and projection.
+  // inverse cull (identity) then inverse projection to 3d
+  if (g_inside_flag[tid] != 1) return;
+
+  uint idx = g_inside_offset[tid] - 1;
+  Gaussian2D g2d = d_gaussian_2d_culled[idx];
+
+  // backprop the 2D Gaussian to the 3D Gaussian
+  DifferentialPair<Gaussian3D> g3d_pair = diffPair(g_gaussian_3d[tid]);
+  bwd_diff(toGaussian2D)(g3d_pair, g2d);
+
+  d_gaussian_3d[tid] = g3d_pair.d;
 }

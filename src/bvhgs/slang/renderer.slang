@@ -8,7 +8,7 @@ import gaussian;
 // Camera parameters.
 Camera g_camera;
 // Gaussian point cloud in world space.
-StructuredBuffer<Gaussian3D> g_gaussian_3d;
+RWStructuredBuffer<Gaussian3D> g_gaussian_3d;
 // Gaussian point cloud in screen space.
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d;
 // Culled 2D gaussian point cloud in screen space.
