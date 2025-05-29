@@ -153,18 +153,3 @@ void extractCulledGaussianGrad(uint tid: SV_DispatchThreadID) {
   d_gaussian_2d_culled[tid] =
       Gaussian2D.fromAtomic(d_a_gaussian_2d_culled[tid]);
 }
-
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void gradDescentGaussian2D(uint tid: SV_DispatchThreadID, uniform float lr) {
-  Gaussian2D gd = d_gaussian_2d_sorted[tid];
-  // Update the Gaussian parameters using gradient descent.
-  g_gaussian_2d_sorted[tid] = g_gaussian_2d_sorted[tid] - (lr * gd);
-}
-
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr) {
-  Gaussian3D gd = d_gaussian_3d[tid];
-  g_gaussian_3d[tid] = g_gaussian_3d[tid] - (lr * gd);
-}
