@@ -51,5 +51,5 @@ void bwdCullProjection(uint tid: SV_DispatchThreadID) {
   DifferentialPair<Gaussian3D> g3d_pair = diffPair(g_gaussian_3d[tid]);
   bwd_diff(toGaussian2D)(g3d_pair, g2d);
 
-  d_gaussian_3d[tid] = g3d_pair.d;
+  d_gaussian_3d[tid] = d_gaussian_3d[tid] + g3d_pair.d;
 }

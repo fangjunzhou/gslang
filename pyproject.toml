@@ -15,6 +15,7 @@ dependencies = [
     "pillow>=11.2.1",
     "pycolmap>=3.11.1",
     "pyvista[full,jupyter]>=0.45.2",
+    "tqdm>=4.67.1",
 ]
 
 [build-system]

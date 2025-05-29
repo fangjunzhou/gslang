@@ -170,8 +170,7 @@ public struct Gaussian2D : IDifferentiable {
     float c = this.covariance[1][0];
     float d = this.covariance[1][1];
 
-    float det = a * d - b * c;
-
+    float det = a * d - b * c; // + EPS;  // add EPS to avoid division by zero
     this.cachedInvCov = float2x2(d / det, -b / det, -c / det, a / det);
   }
 
@@ -284,8 +283,16 @@ public struct Gaussian2D : IDifferentiable {
     float3 color = float3(atomicGaussian[7].load(), atomicGaussian[8].load(),
                           atomicGaussian[9].load());
     float opacity = atomicGaussian[10].load();
+    
+    Gaussian2D g = Gaussian2D(position, covariance, color, opacity);
 
-    return Gaussian2D(position, covariance, color, opacity);
+    float det = g.covariance[0][0] * g.covariance[1][1] -
+          g.covariance[0][1] * g.covariance[1][0];
+
+    if (det < EPS) {
+      g.cachedInvCov = float2x2(0);
+    }
+    return g;
   }
 };
 

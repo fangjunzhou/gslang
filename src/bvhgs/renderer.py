@@ -210,7 +210,7 @@ class Renderer:
     def image_loss(self, src: jnp.ndarray, dst: jnp.ndarray):
         return jnp.mean((dst - src)**2)
 
-    def render(self, with_grad: bool = False) -> None:
+    def render(self, gt_image: Image.Image | None = None) -> None:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
@@ -364,7 +364,9 @@ class Renderer:
             },
         )
 
-        if with_grad:
+        if gt_image is not None:
+            self.set_gt_image(gt_image)
+            
             if self.image_arr.size == 0:
                 raise ValueError("Ground truth image not set for gradient descent.")
             a_gaussian_2d_sorted_grad_buf = device.create_buffer(
@@ -459,7 +461,7 @@ class Renderer:
                     "d_gaussian_3d": self.gaussian_3d_grad_buf,
                 }
             )
-
+        
             
             
                     
@@ -480,12 +482,3 @@ class Renderer:
                 "d_gaussian_3d": self.gaussian_3d_grad_buf,
             }
         )
-        gaussian_grad_cursor = spy.BufferCursor(
-            self.program.reflection.d_gaussian_3d.type_layout.element_type_layout,
-            self.gaussian_3d_grad_buf,
-        )
-        
-        print("Gaussian gradients after gradient descent:")
-        # print the Gaussian gradients.
-        for i in range(len(self.gaussians)):
-            print(gaussian_grad_cursor[i].read())
