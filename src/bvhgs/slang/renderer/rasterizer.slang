@@ -142,7 +142,7 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
     for (uint j = 0; j < 11; j++) {
       // Atomic add the gradient if crosses tile boundaries.
       if (crossesTileBoundary) {
-        d_a_gaussian_2d_sorted[i][j].add(d[j]);
+        d_a_gaussian_2d_sorted[i][(j + tid.x) % 11].add(d[(j + tid.x) % 11]);
       } else {
         // Waveactivesum the gradient if not crossing tile boundaries.
         float sum = WaveActiveSum(d[j]);
@@ -164,7 +164,8 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
 void bwdDuplicateGaussian(uint tid: SV_DispatchThreadID) {
   uint gid = g_gaussian_table[tid].val;
   for (uint j = 0; j < 11; j++) {
-    d_a_gaussian_2d_culled[gid][j].add(d_a_gaussian_2d_sorted[tid][j].load());
+    d_a_gaussian_2d_culled[gid][(j + tid.x) % 11].add(
+        d_a_gaussian_2d_sorted[tid][(j + tid.x) % 11].load());
   }
 }
 
