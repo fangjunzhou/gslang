@@ -62,7 +62,12 @@ class GaussianCloud:
         }
 
     def randomize(
-        self, size: int, position_var: float = 1.0, scale_offst: float = 0, opacity_factor: float = 0
+        self,
+        size: int,
+        position_var: float = 1.0,
+        scale_var: float = 1,
+        scale_offst: float = 0,
+        opacity_factor: float = 0,
     ):
         """Randomize the Gaussian point cloud.
 
@@ -75,10 +80,13 @@ class GaussianCloud:
         self.rotations = np.random.rand(size, 4).astype(np.float32)
         # Normalize the rotations
         self.rotations /= np.linalg.norm(self.rotations, axis=1, keepdims=True)
-        self.scales = np.random.randn(size, 3).astype(np.float32) + scale_offst
+        self.scales = (
+            np.random.randn(size, 3).astype(np.float32) * scale_var
+            + scale_offst
+        )
 
-        self.colors = np.random.randn(size, 3).astype(np.float32)
-        self.opacities = np.random.randn(size, 1).astype(np.float32)
+        self.colors = np.random.rand(size, 3).astype(np.float32)
+        self.opacities = np.ones((size, 1)).astype(np.float32) * opacity_factor
         self.spherical_harmonics = np.random.randn(size, 15, 3).astype(
             np.float32
         )
@@ -137,7 +145,12 @@ class GaussianCloud:
 
         self.num_gaussians = N
 
-    def load_from_colmap(self, path: pathlib.Path, scale_factor: float = -3.0, opacity_factor: float = 0):
+    def load_from_colmap(
+        self,
+        path: pathlib.Path,
+        scale_factor: float = -3.0,
+        opacity_factor: float = 0,
+    ):
         """Load a Gaussian point cloud from a COLMAP sparse file.
 
         :param path: dir to the COLMAP sparse file.
@@ -170,7 +183,9 @@ class GaussianCloud:
         self.scales = np.ones((len(points), 3), dtype=np.float32) * scale_factor
         self.colors = np.ascontiguousarray(colors, dtype=np.float32)
         # opacity=0.5
-        self.opacities = np.full((len(points), 1), opacity_factor, dtype=np.float32)
+        self.opacities = np.full(
+            (len(points), 1), opacity_factor, dtype=np.float32
+        )
         self.spherical_harmonics = np.zeros(
             (len(points), 15, 3), dtype=np.float32
         )

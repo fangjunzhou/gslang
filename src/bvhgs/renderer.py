@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class Renderer:
-    gaussians: GaussianCloud
     camera: Camera
+    num_gaussians: int
 
     gaussian_3d_buf: spy.Buffer
     gaussian_3d_grad_buf: spy.Buffer
@@ -45,7 +45,7 @@ class Renderer:
         :param gaussians: GaussianBuffer object containing the Gaussian points.
         :param camera: Camera object containing the camera parameters.
         """
-        self.gaussians = gaussians
+        self.num_gaussians = len(gaussians)
         self.camera = camera
 
         # Load the module.
@@ -148,7 +148,6 @@ class Renderer:
             usage=spy.TextureUsage.shader_resource
             | spy.TextureUsage.unordered_access,
         )
-
         self.grad_texture = device.create_texture(
             type=spy.TextureType.texture_2d,
             format=spy.Format.rgba32_float,
@@ -209,14 +208,59 @@ class Renderer:
 
         self.loss_grad = jax.value_and_grad(self.image_loss)
 
-    def sync_gaussians(self, buf: spy.Buffer):
+    def set_camera(self, camera: Camera):
+        """Set the camera for the renderer.
+
+        :param camera: Camera object containing the camera parameters.
+        """
+        prev_camera = self.camera
+        self.camera = camera
+        # If the camera sensor size has changed, recreate the render target.
+        if (
+            prev_camera.sensor_size.x != camera.sensor_size.x
+            or prev_camera.sensor_size.y != camera.sensor_size.y
+        ):
+            logger.debug(
+                "Camera sensor size changed from %s to %s. Recreating render target.",
+                (prev_camera.sensor_size.x, prev_camera.sensor_size.y),
+                (camera.sensor_size.x, camera.sensor_size.y),
+            )
+            self.render_target = device.create_texture(
+                type=spy.TextureType.texture_2d,
+                format=spy.Format.rgba32_float,
+                width=camera.sensor_size.x,
+                height=camera.sensor_size.y,
+                usage=spy.TextureUsage.shader_resource
+                | spy.TextureUsage.unordered_access,
+            )
+            self.depth_target = device.create_texture(
+                type=spy.TextureType.texture_2d,
+                format=spy.Format.rgba32_float,
+                width=camera.sensor_size.x,
+                height=camera.sensor_size.y,
+                usage=spy.TextureUsage.shader_resource
+                | spy.TextureUsage.unordered_access,
+            )
+            self.grad_texture = device.create_texture(
+                type=spy.TextureType.texture_2d,
+                format=spy.Format.rgba32_float,
+                width=camera.sensor_size.x,
+                height=camera.sensor_size.y,
+                usage=spy.TextureUsage.shader_resource
+                | spy.TextureUsage.unordered_access,
+            )
+
+    def sync_gaussians(self, buf_data: np.ndarray, num_gaussians: int):
         """Synchronize the Gaussian points with the given buffer."""
-        command = device.create_command_encoder()
-        command.copy_buffer(
-            self.gaussian_3d_buf, 0, buf, 0, self.gaussian_3d_buf.size
+        # Create a buffer for the Gaussian points.
+        self.gaussian_3d_buf = device.create_buffer(
+            element_count=num_gaussians,
+            struct_type=self.program.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
         )
-        device.submit_command_buffer(command.finish())
-        device.wait_for_idle()
+        self.gaussian_3d_buf.copy_from_numpy(buf_data)
+        self.num_gaussians = num_gaussians
 
     def zero_grad(self):
         # gaussian_2d_sorted_grad_buf.copy_from_numpy(
@@ -249,25 +293,25 @@ class Renderer:
         camera_params = self.camera.to_slang()
         logger.debug(
             "Rendering %d Gaussian points with camera parameters: %s",
-            len(self.gaussians),
+            self.num_gaussians,
             camera_params,
         )
         # Project the Gaussian points to screen space.
         gaussian_2d_buf = device.create_buffer(
-            element_count=len(self.gaussians),
+            element_count=self.num_gaussians,
             struct_type=self.program.reflection.g_gaussian_2d,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
         inside_flag_buf = device.create_buffer(
-            element_count=len(self.gaussians),
+            element_count=self.num_gaussians,
             struct_type=self.program.reflection.g_inside_flag,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
 
         self.ker_proj.dispatch(
-            thread_count=[len(self.gaussians), 1, 1],
+            thread_count=[self.num_gaussians, 1, 1],
             vars={
                 "g_camera": camera_params,
                 "g_gaussian_3d": self.gaussian_3d_buf,
@@ -290,7 +334,7 @@ class Renderer:
             | spy.BufferUsage.unordered_access,
         )
         self.ker_cull.dispatch(
-            thread_count=[len(self.gaussians), 1, 1],
+            thread_count=[self.num_gaussians, 1, 1],
             vars={
                 "g_gaussian_2d": gaussian_2d_buf,
                 "g_inside_flag": inside_flag_buf,
@@ -505,7 +549,7 @@ class Renderer:
 
             # bwd cull and projection
             self.ker_bwd_cull_proj.dispatch(
-                thread_count=[len(self.gaussians), 1, 1],
+                thread_count=[self.num_gaussians, 1, 1],
                 vars={
                     "g_camera": self.camera.to_slang(),
                     "g_gaussian_3d": self.gaussian_3d_buf,
@@ -520,7 +564,7 @@ class Renderer:
                 arr = (
                     self.gaussian_3d_grad_buf.to_numpy()
                     .view(np.float32)
-                    .reshape(len(self.gaussians), -1, 4)[:, :5, :]
+                    .reshape(self.num_gaussians, -1, 4)[:, :5, :]
                 )
                 logger.debug(
                     f"Gaussian 3D Gradients Max: {np.max(arr, axis=0)}"
@@ -531,7 +575,7 @@ class Renderer:
                 arr = (
                     self.gaussian_3d_buf.to_numpy()
                     .view(np.float32)
-                    .reshape(len(self.gaussians), -1, 4)[:, :5, :]
+                    .reshape(self.num_gaussians, -1, 4)[:, :5, :]
                 )
                 logger.debug(f"Gaussian 3D Points Max: {np.max(arr, axis=0)}")
                 logger.debug(f"Gaussian 3D Points Min: {np.min(arr, axis=0)}")
@@ -560,7 +604,7 @@ class Renderer:
             raise ValueError("Gaussian 3D gradient buffer is not initialized.")
 
         self.ker_grad_descent.dispatch(
-            thread_count=[len(self.gaussians), 1, 1],
+            thread_count=[self.num_gaussians, 1, 1],
             lr=lr,
             beta1=beta1,
             beta2=beta2,
