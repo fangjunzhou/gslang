@@ -240,7 +240,7 @@ class Renderer:
         num_viewing = np.sum(inside_arr).item()
         if num_viewing == 0:
             logger.debug("No Gaussian points inside the camera frustum.")
-            return
+            return 0.0
         # Create a buffer for the culled Gaussian points.
         culled_gaussian_2d_buf = device.create_buffer(
             element_count=num_viewing,
@@ -478,3 +478,4 @@ class Renderer:
                 "g_gaussian_3d": self.gaussian_3d_buf,
                 "d_gaussian_3d": self.gaussian_3d_grad_buf,
             }
+        )
