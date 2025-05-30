@@ -20,6 +20,8 @@ class Renderer:
 
     gaussian_3d_buf: spy.Buffer
     gaussian_3d_grad_buf: spy.Buffer
+    m_buf: spy.Buffer
+    v_buf: spy.Buffer
     render_target: spy.Texture
     depth_target: spy.Texture
     tile_heat_map: np.ndarray
@@ -167,14 +169,12 @@ class Renderer:
         for i in range(len(gaussians)):
             gaussian_cursor[i].write(gaussians[i])
         gaussian_cursor.apply()
-        
     
         self.gaussian_3d_grad_buf = device.create_buffer(
             element_count=len(gaussians),
             struct_type=self.program.reflection.d_gaussian_3d,
             usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
         )
-        
         self.m_buf = device.create_buffer(
             element_count=len(gaussians),
             struct_type=self.program.reflection.g_gaussian_3d,
