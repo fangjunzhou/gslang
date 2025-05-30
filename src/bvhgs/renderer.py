@@ -478,4 +478,3 @@ class Renderer:
                 "g_gaussian_3d": self.gaussian_3d_buf,
                 "d_gaussian_3d": self.gaussian_3d_grad_buf,
             }
-        )
