@@ -175,6 +175,21 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
         )
         
+        self.m_buf = device.create_buffer(
+            element_count=len(gaussians),
+            struct_type=self.program.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        )
+        self.v_buf = device.create_buffer(
+            element_count=len(gaussians),
+            struct_type=self.program.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+        )
+        self.m_buf.copy_from_numpy(np.zeros((self.m_buf.size,), dtype=np.uint8))
+        self.v_buf.copy_from_numpy(np.zeros((self.v_buf.size,), dtype=np.uint8))
+        
+        self.adamw_step = 1
+        
         self.loss_grad = jax.value_and_grad(self.image_loss)
 
         
@@ -462,7 +477,18 @@ class Renderer:
         return loss
 
 
-    def backward(self, lr: float = 5) -> None:
+    def optimizer_set_step(self, step: int):
+        self.adamw_step = step
+        
+    def optimizer_step(self) -> None:
+        self.adamw_step += 1
+    
+    def backward(self,
+                lr: float = 5.0,
+                beta1: float = 0.9,
+                beta2: float = 0.999,
+                weight_decay: float = 0.01) -> None:
+        
         """Perform gradient descent on the Gaussian points."""
         if self.image_arr.size == 0:
             raise ValueError("Ground truth image not set for gradient descent.")
@@ -474,8 +500,14 @@ class Renderer:
         self.ker_grad_descent.dispatch(
             thread_count=[len(self.gaussians), 1, 1],
             lr=lr,
+            beta1=beta1,
+            beta2=beta2,
+            weightDecay=weight_decay,
+            step=self.adamw_step,
             vars={
                 "g_gaussian_3d": self.gaussian_3d_buf,
                 "d_gaussian_3d": self.gaussian_3d_grad_buf,
+                "m_gaussian_3d": self.m_buf,
+                "v_gaussian_3d": self.v_buf,
             }
         )

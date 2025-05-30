@@ -40,6 +40,8 @@ RWStructuredBuffer<Atomic<float>[11]> d_a_gaussian_2d_culled;
 RWStructuredBuffer<Gaussian2D> d_gaussian_2d_culled;
 // World space gaussian gradient.
 RWStructuredBuffer<Gaussian3D> d_gaussian_3d;
+RWStructuredBuffer<Gaussian3D> m_gaussian_3d;
+RWStructuredBuffer<Gaussian3D> v_gaussian_3d;
 
 __include "./renderer/projection.slang";
 __include "./renderer/tile.slang";
