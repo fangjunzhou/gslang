@@ -292,10 +292,6 @@ class App:
         timer = spy.Timer()
         fps_avg = 0.0
 
-        # Store previous scene rotation to detect changes
-        # Initialize with current scene rotation
-        prev_scene_rotation = self.scene_rotation
-
         while not self.window.should_close():
             # Calculate frame time and FPS
             elapsed = timer.elapsed_s()
@@ -329,3 +325,4 @@ class App:
             del surface_tex
 
             self.surface.present()
+            yield

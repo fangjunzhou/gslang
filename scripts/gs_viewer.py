@@ -38,8 +38,10 @@ if __name__ == "__main__":
         gaussians.load_from_colmap(args.path)
 
     # Initialize and run the application
-    App(
+    app = App(
         gaussians,
         resolution=tuple(args.resolution),
         focal_length=args.focal_length,
-    ).run()
+    )
+    for _ in app.run():
+        pass  # Keep the application running until closed
