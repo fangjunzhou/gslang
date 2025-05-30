@@ -2,7 +2,8 @@ implementing "../renderer.slang";
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void computeTile(uint tid: SV_DispatchThreadID) {
+void computeTile(uint tid: SV_DispatchThreadID, uniform uint numViewing) {
+  if (tid >= numViewing) return;
   // Get the bounding box of the gaussian.
   BoundingBox2D bbox = g_gaussian_2d_culled[tid].boundingBox();
   float2 bMin = bbox.min;
@@ -22,7 +23,9 @@ void computeTile(uint tid: SV_DispatchThreadID) {
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void buildGaussianTable(uint tid: SV_DispatchThreadID) {
+void buildGaussianTable(uint tid: SV_DispatchThreadID,
+                        uniform uint numViewing) {
+  if (tid >= numViewing) return;
   // TODO: Build (tile id, depth) to gaussian idx loopup table.
   Gaussian2D g = g_gaussian_2d_culled[tid];
   uint tableIdx;
@@ -64,9 +67,7 @@ void buildGaussianTable(uint tid: SV_DispatchThreadID) {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void tileHistogram(uint tid: SV_DispatchThreadID, uniform uint numEntries) {
-  if (tid >= numEntries) {
-    return;
-  }
+  if (tid >= numEntries) return;
   KVPair kv = g_gaussian_table[tid];
   // Get the tile id.
   uint tileId = uint(kv.key >> 32);

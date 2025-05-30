@@ -6,6 +6,7 @@ from pyglm import glm
 import quaternion
 import argparse
 
+from bvhgs import device
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.camera import Camera
 from bvhgs.renderer import Renderer
@@ -14,7 +15,8 @@ from bvhgs.renderer import Renderer
 class App:
     def __init__(
         self,
-        ply_path: Path,
+        path: Path,
+        is_colmap: bool = False,
         resolution: Tuple[int, int] = (800, 600),
         focal_length: float = 580,
     ):
@@ -25,7 +27,7 @@ class App:
             title="BVHGS Viewer",
             resizable=False,
         )
-        self.device = spy.Device(enable_debug_layers=True)
+        self.device = device
         self.surface = self.device.create_surface(self.window)
         self.surface.configure(
             width=self.window.width, height=self.window.height
@@ -36,7 +38,10 @@ class App:
 
         # Load scene
         gaussians = GaussianCloud()
-        gaussians.load_from_ply(ply_path)
+        if not is_colmap:
+            gaussians.load_from_ply(path)
+        else:
+            gaussians.load_from_colmap(path)
 
         # Initialize camera and cursor at scene center
         self.cursor = glm.vec3(0, 0, 0)
@@ -340,10 +345,11 @@ class App:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BVHGS Viewer")
     parser.add_argument(
-        "ply_path",
+        "path",
         type=Path,
-        help="Path to the PLY file containing Gaussian points",
+        help="Path to the PLY or COLMAP file containing Gaussian points",
     )
+    parser.add_argument("--colmap", action="store_true", help="Is COLMAP file")
     parser.add_argument(
         "--resolution",
         type=int,
@@ -358,11 +364,12 @@ if __name__ == "__main__":
         help="Focal length for the camera",
     )
     args = parser.parse_args()
-    if not args.ply_path.exists():
-        raise FileNotFoundError(f"PLY file not found: {args.ply_path}")
+    if not args.path.exists():
+        raise FileNotFoundError(f"Path not found: {args.path}")
     # Initialize and run the application
     App(
-        ply_path=args.ply_path,
+        path=args.path,
+        is_colmap=args.colmap,
         resolution=tuple(args.resolution),
         focal_length=args.focal_length,
     ).run()

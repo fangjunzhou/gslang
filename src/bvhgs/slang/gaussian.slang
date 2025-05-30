@@ -15,7 +15,7 @@ static const float C5 = sqrt(21.0 / (2.0 * PI));
 static const float C6 = sqrt(7.0 / PI);
 static const int SH_COUNT = 15;
 
-static const float BBOX_SIZE = 3;
+static const float BBOX_SIZE = 4;
 
 public struct Gaussian3D : IDifferentiable {
   public float3 position;
@@ -113,6 +113,18 @@ public struct Gaussian3D : IDifferentiable {
   }
 };
 
+Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
+  return Gaussian3D(a.position + b.position, a.rotation + b.rotation,
+                    a.scale + b.scale, a.color + b.color, a.opacity + b.opacity,
+                    a.sh);
+}
+
+Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
+  return Gaussian3D(a.position - b.position, a.rotation - b.rotation,
+                    a.scale - b.scale, a.color - b.color, a.opacity - b.opacity,
+                    a.sh);
+}
+
 public struct Gaussian2D : IDifferentiable {
   // Gaussian position in normalized device coordinates.
   public float3 position;
@@ -164,9 +176,36 @@ public struct Gaussian2D : IDifferentiable {
     linalg.eigen2x2 eig = linalg.eigen(this.covariance);
     float2 eigenVals = eig.eigenvalues;
     float2x2 eigenVecs = eig.eigenvectors;
-    // Convert to semi-axes.
-    eigenVecs[0] = normalize(eigenVecs[0]) * sqrt(eigenVals.x) * BBOX_SIZE;
-    eigenVecs[1] = normalize(eigenVecs[1]) * sqrt(eigenVals.y) * BBOX_SIZE;
+
+    // Safety check: ensure eigenvalues are positive to avoid NaN from sqrt
+    eigenVals.x = max(eigenVals.x, EPS);
+    eigenVals.y = max(eigenVals.y, EPS);
+
+    // Convert to semi-axes, using safe normalization
+    float len0 = length(eigenVecs[0]);
+    float len1 = length(eigenVecs[1]);
+
+    // Only normalize if length is significant to avoid division by near-zero
+    if (len0 > EPS) {
+      eigenVecs[0] = eigenVecs[0] / len0 * sqrt(eigenVals.x) * BBOX_SIZE;
+    } else {
+      eigenVecs[0] = float2(sqrt(eigenVals.x) * BBOX_SIZE, 0);
+    }
+
+    if (len1 > EPS) {
+      eigenVecs[1] = eigenVecs[1] / len1 * sqrt(eigenVals.y) * BBOX_SIZE;
+    } else {
+      eigenVecs[1] = float2(0, sqrt(eigenVals.y) * BBOX_SIZE);
+    }
+
+    // Ensure orthogonality for numerical stability
+    if (abs(dot(eigenVecs[0], eigenVecs[1])) >
+        EPS * length(eigenVecs[0]) * length(eigenVecs[1])) {
+      eigenVecs[1] =
+          float2(-eigenVecs[0].y, eigenVecs[0].x);  // perpendicular vector
+      eigenVecs[1] =
+          eigenVecs[1] * (sqrt(eigenVals.y) * BBOX_SIZE / length(eigenVecs[1]));
+    }
 
     // Approximate the bounding box of the Gaussian with four axis-aligned
     // rectangles.
@@ -186,5 +225,55 @@ public struct Gaussian2D : IDifferentiable {
     }
     // Return the bounding box as a tuple.
     return BoundingBox2D(bMin, bMax);
+  }
+};
+
+public struct Gaussian2DAtomic {
+  public Atomic<float>[3] position;
+
+  public Atomic<float> [2][2] covariance;
+  public Atomic<float>[3] color;
+  public Atomic<float> opacity;
+
+  __init(Gaussian2D g) {
+    this.position[0] = g.position.x;
+    this.position[1] = g.position.y;
+    this.position[2] = g.position.z;
+    this.covariance[0][0] = g.covariance[0][0];
+    this.covariance[0][1] = g.covariance[0][1];
+    this.covariance[1][0] = g.covariance[1][0];
+    this.covariance[1][1] = g.covariance[1][1];
+    this.color[0] = g.color.x;
+    this.color[1] = g.color.y;
+    this.color[2] = g.color.z;
+    this.opacity = g.opacity;
+  }
+
+  [mutating]
+  public void add(Gaussian2D g) {
+    this.position[0].add(g.position.x);
+    this.position[1].add(g.position.y);
+    this.position[2].add(g.position.z);
+    this.covariance[0][0].add(g.covariance[0][0]);
+    this.covariance[0][1].add(g.covariance[0][1]);
+    this.covariance[1][0].add(g.covariance[1][0]);
+    this.covariance[1][1].add(g.covariance[1][1]);
+    this.color[0].add(g.color.x);
+    this.color[1].add(g.color.y);
+    this.color[2].add(g.color.z);
+    this.opacity.add(g.opacity);
+  }
+
+  [mutating]
+  public Gaussian2D toGaussian2D() {
+    float3 position = float3(this.position[0].load(), this.position[1].load(),
+                             this.position[2].load());
+    float2x2 covariance =
+        float2x2(this.covariance[0][0].load(), this.covariance[0][1].load(),
+                 this.covariance[1][0].load(), this.covariance[1][1].load());
+    float3 color = float3(this.color[0].load(), this.color[1].load(),
+                          this.color[2].load());
+    float opacity = this.opacity.load();
+    return Gaussian2D(position, covariance, color, opacity);
   }
 };

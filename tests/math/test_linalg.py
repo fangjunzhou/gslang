@@ -20,8 +20,10 @@ def test_eigen2x2(buffer_size: int):
     """
     Test the eigen2x2 function.
     """
-    # Create a random 2x2 matrix
+    # Create a random 2x2 SPD matrix
     mat = np.random.rand(buffer_size, 2, 2).astype(np.float32)
+    # Ensure the matrix is symmetric positive definite
+    mat = mat @ mat.transpose(0, 2, 1)
     mat_buf = spy.NDBuffer(device, dtype=spy.float2x2, shape=mat.shape)
     mat_buf.copy_from_numpy(mat)
 

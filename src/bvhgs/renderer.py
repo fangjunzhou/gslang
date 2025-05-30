@@ -17,7 +17,10 @@ class Renderer:
     camera: Camera
 
     gaussian_3d: spy.Buffer
+    gaussian_3d_grad: spy.Buffer
     render_target: spy.Texture
+    depth_target: spy.Texture
+    tile_heat_map: np.ndarray
 
     program: spy.ShaderProgram
     # Projection kernels.
@@ -101,6 +104,15 @@ class Renderer:
             usage=spy.TextureUsage.shader_resource
             | spy.TextureUsage.unordered_access,
         )
+        self.depth_target = device.create_texture(
+            type=spy.TextureType.texture_2d,
+            format=spy.Format.rgba32_float,
+            width=self.camera.sensor_size.x,
+            height=self.camera.sensor_size.y,
+            usage=spy.TextureUsage.shader_resource
+            | spy.TextureUsage.unordered_access,
+        )
+        self.tile_heat_map = np.zeros((16, 16))
         # Create a buffer for the Gaussian points.
         self.gaussian_3d = device.create_buffer(
             element_count=len(gaussians),
@@ -116,7 +128,7 @@ class Renderer:
             gaussian_cursor[i].write(gaussians[i])
         gaussian_cursor.apply()
 
-    def render(self) -> None:
+    def render(self, with_grad: bool = False) -> None:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
@@ -150,12 +162,8 @@ class Renderer:
         )
         # Cull the Gaussian points.
         inside_offset_buf = prefix_sum(inside_flag_buf)
-        inside_offset_cursor = spy.BufferCursor(
-            self.program.reflection.g_inside_offset.type_layout.element_type_layout,
-            inside_offset_buf,
-        )
-        # Read the last element of the cull prefix buffer to get the number of culled points.
-        num_viewing = int(inside_offset_cursor[len(inside_offset_cursor) - 1].read())  # type: ignore
+        inside_arr = inside_flag_buf.to_numpy().view(np.uint32)
+        num_viewing = np.sum(inside_arr).item()
         if num_viewing == 0:
             logger.debug("No Gaussian points inside the camera frustum.")
             return
@@ -184,6 +192,7 @@ class Renderer:
         )
         self.ker_tile.dispatch(
             thread_count=[num_viewing, 1, 1],
+            numViewing=num_viewing,
             vars={
                 "g_gaussian_2d_culled": culled_gaussian_2d_buf,
                 "g_num_tiles": num_tile_buf,
@@ -203,6 +212,7 @@ class Renderer:
         num_tile_prefix_buf = prefix_sum(num_tile_buf)
         self.ker_gs_table.dispatch(
             thread_count=[num_viewing, 1, 1],
+            numViewing=num_viewing,
             vars={
                 "g_gaussian_2d_culled": culled_gaussian_2d_buf,
                 "g_num_tiles_prefix": num_tile_prefix_buf,
@@ -213,7 +223,7 @@ class Renderer:
         numpy_sort(gaussian_table_buf)
         # Create a histogram buffer for the tiles.
         hist_buf = device.create_buffer(
-            element_count=2**8,
+            element_count=16 * 16,
             struct_type=self.program.reflection.g_tile_hist_atomic,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
@@ -244,6 +254,7 @@ class Renderer:
         )
         # Calculate table offset.
         hist_arr = hist_buf.to_numpy().view(np.uint32)
+        self.tile_heat_map = hist_arr.reshape(16, 16)
         hist_offset = np.zeros_like(hist_arr)
         hist_offset[1:] = np.cumsum(hist_arr)[:-1]
         hist_offset_buf = device.create_buffer(
@@ -266,5 +277,10 @@ class Renderer:
                 "g_tile_offs": hist_offset_buf,
                 "g_gaussian_2d_sorted": gaussian_2d_sorted_buf,
                 "g_render_target": self.render_target,
+                "g_depth_target": self.depth_target,
             },
         )
+
+        if with_grad:
+            # TODO: Implement gradient rendering.
+            pass
