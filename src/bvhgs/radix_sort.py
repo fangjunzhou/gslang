@@ -1,3 +1,4 @@
+
 import logging
 from typing import Optional, Tuple
 import numpy as np
@@ -26,6 +27,7 @@ def radix_sort(
 ) -> spy.Buffer:
     if total_bits is None:
         total_bits = 8
+        
     n = src_buf.size // src_buf.struct_size
     buckets = 1 << bits_per_pass
     mask = buckets - 1
@@ -104,6 +106,7 @@ def radix_sort(
         src_buf, dst_buf = dst_buf, src_buf
 
     return src_buf
+
 
 
 def stable_radix_sort(
