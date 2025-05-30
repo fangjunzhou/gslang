@@ -45,6 +45,7 @@ public struct Gaussian3D : IDifferentiable {
     this.color = color;
     this.opacity = opacity;
   }
+
   [Differentiable]
   public float3 scaleExp() { return exp(this.scale); }
   [Differentiable]

@@ -95,9 +95,11 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
   float depth = 1;
   // Loop over the gaussians in the tile.
   uint n = g_num_rendered_gaussians[tid];
+  if (n > tileLength) n = tileLength;  // Safety check to avoid invalid n values
   for (uint idx = 0; idx < n; idx++) {
-    // if (idx >= n) continue; // Skip gaussians that were not rendered.
-    uint i = tileOffs + tileLength - idx;
+    // Calculate index in reverse order, with safety check
+    uint reverse_idx = n - idx - 1;  // This ensures we stay within bounds
+    uint i = tileOffs + reverse_idx;
 
     // Get the gaussian.
     Gaussian2D g = g_gaussian_2d_sorted[i];
@@ -111,9 +113,14 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
     DifferentialPair<float> alphaPair = diffPair(alpha);
     bwd_diff(calculateRadiance)(g_pair, alphaPair, dGaussianRadiance);
 
-    alphaPair.d.add(-dot(dRadiance, radiance) * attenuation);
+    alphaPair = diffPair(alphaPair.p,
+                         alphaPair.d - dot(dRadiance, radiance) * attenuation);
+
+    Gaussian2D.Differential g_pair_d = g_pair.d;
 
     bwd_diff(calculateAlpha)(g_pair, uv, alphaPair.d);
+
+    g_pair = diffPair(g_pair.p, g_pair.d + g_pair_d);
 
     float[11] d = g_pair.d.toArray();
     for (uint j = 0; j < 11; j++) {

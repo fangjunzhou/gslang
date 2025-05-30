@@ -18,8 +18,8 @@ class Renderer:
     gaussians: GaussianCloud
     camera: Camera
 
-    gaussian_3d: spy.Buffer
-    gaussian_3d_grad: spy.Buffer
+    gaussian_3d_buf: spy.Buffer
+    gaussian_3d_grad_buf: spy.Buffer
     render_target: spy.Texture
     depth_target: spy.Texture
     tile_heat_map: np.ndarray
@@ -153,7 +153,7 @@ class Renderer:
         
         self.tile_heat_map = np.zeros((16, 16))
         # Create a buffer for the Gaussian points.
-        self.gaussian_3d = device.create_buffer(
+        self.gaussian_3d_buf = device.create_buffer(
             element_count=len(gaussians),
             struct_type=self.program.reflection.g_gaussian_3d,
             usage=spy.BufferUsage.shader_resource
@@ -162,7 +162,7 @@ class Renderer:
         # Store all the gaussian points in the buffer.
         gaussian_cursor = spy.BufferCursor(
             self.program.reflection.g_gaussian_3d.type_layout.element_type_layout,
-            self.gaussian_3d,
+            self.gaussian_3d_buf,
         )
         for i in range(len(gaussians)):
             gaussian_cursor[i].write(gaussians[i])
@@ -202,7 +202,7 @@ class Renderer:
     def image_loss(self, src: jnp.ndarray, dst: jnp.ndarray):
         return jnp.mean((dst - src)**2)
 
-    def render(self, gt_image: Image.Image | None = None) -> None:
+    def render(self, gt_image: Image.Image | None = None) -> float:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
@@ -229,7 +229,7 @@ class Renderer:
             thread_count=[len(self.gaussians), 1, 1],
             vars={
                 "g_camera": camera_params,
-                "g_gaussian_3d": self.gaussian_3d,
+                "g_gaussian_3d": self.gaussian_3d_buf,
                 "g_gaussian_2d": gaussian_2d_buf,
                 "g_inside_flag": inside_flag_buf,
             },
@@ -356,6 +356,8 @@ class Renderer:
             },
         )
 
+        loss = 0.0
+
         if gt_image is not None:
             self.set_gt_image(gt_image)
             
@@ -385,7 +387,7 @@ class Renderer:
             raw_image = jnp.array(self.render_target.to_numpy()[:, :, :3])
             loss, render_target_grad = self.loss_grad(raw_image, self.image_arr)
 
-            print(f"Loss after gradient descent: {loss}")
+            logger.debug(f"Loss: {loss}")
 
             rg_shape = render_target_grad.shape
             render_target_grad = jnp.concatenate((render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))), axis=-1)
@@ -405,6 +407,11 @@ class Renderer:
                     "g_num_rendered_gaussians": self.num_depth_buf,
                 }
             )
+
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                arr = a_gaussian_2d_sorted_grad_buf.to_numpy().view(np.float32).reshape(table_size, -1)
+                logger.debug(f"Gaussian 2D Sorted Gradients Max: {np.max(arr, axis=0)}")
+                logger.debug(f"Gaussian 2D Sorted Gradients Min: {np.min(arr, axis=0)}")
             
             #bwd duplicate
             self.ker_bwd_duplicate.dispatch(
@@ -415,7 +422,12 @@ class Renderer:
                     "d_a_gaussian_2d_culled": a_gaussian_2d_culled_grad_buf,
                 }
             )
-            
+
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                arr = a_gaussian_2d_culled_grad_buf.to_numpy().view(np.float32).reshape(num_viewing, -1)
+                logger.debug(f"Gaussian 2D Culled Gradients Max: {np.max(arr, axis=0)}")
+                logger.debug(f"Gaussian 2D Culled Gradients Min: {np.min(arr, axis=0)}")
+
             # Extract the gradients for the culled Gaussian 2D points.
             self.ker_extract_culled_gaussian.dispatch(
                 thread_count=[num_viewing, 1, 1],
@@ -431,22 +443,30 @@ class Renderer:
                 thread_count=[len(self.gaussians), 1, 1],
                 vars={
                     "g_camera": self.camera.to_slang(),
-                    "g_gaussian_3d": self.gaussian_3d,
+                    "g_gaussian_3d": self.gaussian_3d_buf,
                     "g_inside_flag": inside_flag_buf,
                     "g_inside_offset": inside_offset_buf,
                     "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
                     "d_gaussian_3d": self.gaussian_3d_grad_buf,
                 }
             )
+
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                arr = self.gaussian_3d_grad_buf.to_numpy().view(np.float32).reshape(len(self.gaussians), -1, 4)[:, :5, :]
+                logger.debug(f"Gaussian 3D Gradients Max: {np.max(arr, axis=0)}")
+                logger.debug(f"Gaussian 3D Gradients Min: {np.min(arr, axis=0)}")
+                arr = self.gaussian_3d_buf.to_numpy().view(np.float32).reshape(len(self.gaussians), -1, 4)[:, :5, :]
+                logger.debug(f"Gaussian 3D Points Max: {np.max(arr, axis=0)}")
+                logger.debug(f"Gaussian 3D Points Min: {np.min(arr, axis=0)}")
         
-            
-            
-                    
+        return loss
+
+
     def backward(self, lr: float = 5) -> None:
         """Perform gradient descent on the Gaussian points."""
         if self.image_arr.size == 0:
             raise ValueError("Ground truth image not set for gradient descent.")
-        
+
         # Ensure the Gaussian 3D buffer is initialized.
         if self.gaussian_3d_grad_buf is None:
             raise ValueError("Gaussian 3D gradient buffer is not initialized.")
@@ -455,7 +475,7 @@ class Renderer:
             thread_count=[len(self.gaussians), 1, 1],
             lr=lr,
             vars={
-                "g_gaussian_3d": self.gaussian_3d,
+                "g_gaussian_3d": self.gaussian_3d_buf,
                 "d_gaussian_3d": self.gaussian_3d_grad_buf,
             }
         )
