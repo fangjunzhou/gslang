@@ -110,10 +110,6 @@ class Renderer:
         self.ker_grad_descent = device.create_compute_kernel(
             device.link_program([renderer_module], [renderer_module.entry_point("gradDescentGaussian3D")])
         )
-        self.ker_2d_gaussian_grad = device.create_compute_kernel(
-            device.link_program([renderer_module], [renderer_module.entry_point("gradDescentGaussian2D")])
-        )
-
 
         self.ker_extract_sorted_gaussian = device.create_compute_kernel(
             device.link_program([renderer_module], [renderer_module.entry_point("extractSortedGaussianGrad")])

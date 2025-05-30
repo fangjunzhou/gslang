@@ -43,12 +43,6 @@ class App:
             gaussians.load_from_ply(path)
         else:
             gaussians.load_from_colmap(path)
-            
-        sfm_dataset = SFMDataset()
-        sfm_dataset.load_from_colmap(
-            colmap_path=pathlib.Path(path),
-            image_dir=pathlib.Path(path.parent.parent, "images"),
-        )
 
         # Initialize camera and cursor at scene center
         self.cursor = glm.vec3(0, 0, 0)
