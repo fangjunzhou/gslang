@@ -72,8 +72,8 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
 }
 
 [shader("compute")]
-[numthreads(8, 8, 1)]
-void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
+[numthreads(8, 4, 1)]
+void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
   if (tid.x >= g_camera.sensorSize.x || tid.y >= g_camera.sensorSize.y) return;
   // Convert pixel coordinate to screen space uv.
   float2 uv = (float2(tid) + 0.5f) / float2(g_camera.sensorSize);
@@ -83,6 +83,16 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
   // Tile id.
   uint2 tile = uint2(uv / tileSize);
   uint tileId = tile.y * TILE_SHAPE.x + tile.x;
+
+  // Get the group start and end tile ids.
+  float2 groupStartUv = float2(gid) * float2(8, 8);
+  float2 groupEndUv = groupStartUv + float2(8, 8);
+  uint2 groupStartTile = uint2(groupStartUv / tileSize);
+  uint2 groupEndTile = uint2(groupEndUv / tileSize);
+  // Check if thread group crosses tile boundaries.
+  bool crossesTileBoundary = (groupStartTile.x != groupEndTile.x) ||
+                             (groupStartTile.y != groupEndTile.y);
+
   // Get the offset and length of the tile.
   uint tileLength = g_tile_hist[tileId];
   uint tileOffs = g_tile_offs[tileId];
@@ -96,10 +106,13 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
   // Loop over the gaussians in the tile.
   uint n = g_num_rendered_gaussians[tid];
   if (n > tileLength) n = tileLength;  // Safety check to avoid invalid n values
-  for (uint idx = 0; idx < n; idx++) {
+  for (uint idx = 0; idx < tileLength; idx++) {
     // Calculate index in reverse order, with safety check
-    uint reverse_idx = n - idx - 1;  // This ensures we stay within bounds
+    uint reverse_idx =
+        tileLength - idx - 1;  // This ensures we stay within bounds
     uint i = tileOffs + reverse_idx;
+    if (i >= n)
+      continue;  // Skip if index exceeds the number of rendered gaussians
 
     // Get the gaussian.
     Gaussian2D g = g_gaussian_2d_sorted[i];
@@ -124,7 +137,16 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
 
     float[11] d = g_pair.d.toArray();
     for (uint j = 0; j < 11; j++) {
-      d_a_gaussian_2d_sorted[i][j].add(d[j]);
+      // Atomic add the gradient if crosses tile boundaries.
+      if (crossesTileBoundary) {
+        d_a_gaussian_2d_sorted[i][j].add(d[j]);
+      } else {
+        // Waveactivesum the gradient if not crossing tile boundaries.
+        float sum = WaveActiveSum(d[j]);
+        if (WaveIsFirstLane()) {
+          d_a_gaussian_2d_sorted[i][j].add(sum);
+        }
+      }
     }
 
     radiance = radiance * (1 - alpha);
