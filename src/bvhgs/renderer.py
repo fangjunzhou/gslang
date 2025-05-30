@@ -6,7 +6,7 @@ from bvhgs import device
 from bvhgs.camera import Camera
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.prefix_sum import prefix_sum
-from bvhgs.radix_sort import numpy_sort, radix_sort, stable_radix_sort
+from bvhgs.radix_sort import numpy_sort, radix_sort
 
 
 logger = logging.getLogger(__name__)

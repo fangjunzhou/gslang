@@ -1,4 +1,5 @@
 
+
 module radix_sort;
 
 public struct KVPair {
@@ -41,11 +42,11 @@ void buildHist(uint tid: SV_DispatchThreadID, uniform RadixState state) {
   state.hist[digit].add(1);
 }
 
-groupshared KVPair localBuffer[64];  // stores 64 KVPairs temporarily
-groupshared Atomic<uint> localCounts[256];  // number of elements in each bin in this group
+groupshared KVPair localBuffer[64];         // stores 64 KVPairs temporarily
+groupshared Atomic<uint> localCounts[256];  // number of elements in this workgroup fall into bucket i.
 groupshared uint localOffsets[256];  // offset for each bin within the global output array
 [shader("compute")]
-[numthreads(64, 1, 1)]  
+[numthreads(256, 1, 1)]  
 void scatter(uint3 gid: SV_GroupID, uint3 tid: SV_GroupThreadID, 
              uint gtid: SV_GroupIndex, uniform RadixState state,
              uniform uint binOffset, uniform uint binSize) {

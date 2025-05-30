@@ -3,6 +3,8 @@ import logging
 from typing import Optional, Tuple
 import numpy as np
 import slangpy as spy
+import jax.numpy as jnp
+
 from bvhgs import device
 
 
@@ -27,7 +29,7 @@ def radix_sort(
 ) -> spy.Buffer:
     if total_bits is None:
         total_bits = 8
-        
+
     n = src_buf.size // src_buf.struct_size
     buckets = 1 << bits_per_pass
     mask = buckets - 1
@@ -108,33 +110,6 @@ def radix_sort(
     return src_buf
 
 
-
-def stable_radix_sort(
-    src_buf: spy.Buffer,
-    bits_per_pass: int = 8,
-    total_bits: int = 40,
-) -> spy.Buffer:
-    """A stable version of radix sort that uses numpy to ensure stability.
-
-    This function is a temporary workaround until the radix sort implementation
-    is fixed to be stable.
-
-    :param src_buf: The source buffer containing key-value pairs.
-    :param bits_per_pass: Number of bits to use per pass.
-    :param total_bits: Total number of bits in the key.
-    :return: A tuple of (sorted buffer, histogram buffer).
-    """
-    sorted_buf = radix_sort(src_buf, bits_per_pass, total_bits)
-
-    # Fix: Use numpy to ensure stable sort
-    table_arr = sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)
-    sort_idx = np.argsort(table_arr[:, 0])
-    table_arr = table_arr[sort_idx]
-    sorted_buf.copy_from_numpy(table_arr)
-
-    return sorted_buf
-
-
 def numpy_sort(
     buf: spy.Buffer,
 ):
@@ -144,3 +119,13 @@ def numpy_sort(
     table_arr = table_arr[sort_idx]
 
     buf.copy_from_numpy(table_arr)
+
+
+def jax_sort(buf: spy.Buffer):
+    """Sorts a buffer using jax."""
+    table_arr = buf.to_numpy().view(np.uint64).reshape(-1, 2)
+    sort_idx = jnp.argsort(table_arr[:, 0])
+    table_arr = table_arr[sort_idx]
+
+    buf.copy_from_numpy(table_arr)
+
