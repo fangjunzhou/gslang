@@ -72,17 +72,6 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
 }
 
 [shader("compute")]
-[numthreads(64, 1, 1)]
-void bwdDuplicateGaussian(uint tid: SV_DispatchThreadID) {
-  uint gid = g_gaussian_table[tid].val;
-  Gaussian2D d_g = d_gaussian_2d_sorted[tid];
-  float[11] d_g_a = d_g.toArray();
-  for (uint j = 0; j < 11; j++) {
-    d_a_gaussian_2d_culled[gid][j].add(d_g_a[j]);
-  }
-}
-
-[shader("compute")]
 [numthreads(8, 8, 1)]
 void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
   if (tid.x >= g_camera.sensorSize.x || tid.y >= g_camera.sensorSize.y) return;
@@ -140,10 +129,11 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID) {
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void extractSortedGaussianGrad(uint tid: SV_DispatchThreadID) {
-  // Extract the gradient of the sorted Gaussian.
-  d_gaussian_2d_sorted[tid] =
-      Gaussian2D.fromAtomic(d_a_gaussian_2d_sorted[tid]);
+void bwdDuplicateGaussian(uint tid: SV_DispatchThreadID) {
+  uint gid = g_gaussian_table[tid].val;
+  for (uint j = 0; j < 11; j++) {
+    d_a_gaussian_2d_culled[gid][j].add(d_a_gaussian_2d_sorted[tid][j].load());
+  }
 }
 
 [shader("compute")]

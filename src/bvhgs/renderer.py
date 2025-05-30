@@ -111,10 +111,6 @@ class Renderer:
             device.link_program([renderer_module], [renderer_module.entry_point("gradDescentGaussian3D")])
         )
 
-        self.ker_extract_sorted_gaussian = device.create_compute_kernel(
-            device.link_program([renderer_module], [renderer_module.entry_point("extractSortedGaussianGrad")])
-        )
-
         self.ker_extract_culled_gaussian = device.create_compute_kernel(
             device.link_program([renderer_module], [renderer_module.entry_point("extractCulledGaussianGrad")])
         )
@@ -371,14 +367,8 @@ class Renderer:
                 usage=spy.BufferUsage.shader_resource
                 | spy.BufferUsage.unordered_access,
             )
-            gaussian_2d_sorted_grad_buf = device.create_buffer(
-                element_count=table_size,
-                struct_type=self.program.reflection.d_gaussian_2d_sorted,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
 
-            a_guassian_2d_culled_grad_buf = device.create_buffer(
+            a_gaussian_2d_culled_grad_buf = device.create_buffer(
                 element_count=num_viewing,
                 struct_type=self.program.reflection.d_a_gaussian_2d_culled,
                 usage=spy.BufferUsage.shader_resource
@@ -416,22 +406,13 @@ class Renderer:
                 }
             )
             
-            # Extract the gradients for the sorted Gaussian 2D points.
-            self.ker_extract_sorted_gaussian.dispatch(
-                thread_count=[table_size, 1, 1],
-                vars={
-                    "d_gaussian_2d_sorted": gaussian_2d_sorted_grad_buf,
-                    "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
-                }
-            )
-            
             #bwd duplicate
             self.ker_bwd_duplicate.dispatch(
                 thread_count=[table_size, 1, 1],
                 vars={
                     "g_gaussian_table": gaussian_table_buf,
-                    "d_gaussian_2d_sorted": gaussian_2d_sorted_grad_buf,
-                    "d_a_gaussian_2d_culled": a_guassian_2d_culled_grad_buf,
+                    "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
+                    "d_a_gaussian_2d_culled": a_gaussian_2d_culled_grad_buf,
                 }
             )
             
@@ -439,8 +420,8 @@ class Renderer:
             self.ker_extract_culled_gaussian.dispatch(
                 thread_count=[num_viewing, 1, 1],
                 vars={
+                    "d_a_gaussian_2d_culled": a_gaussian_2d_culled_grad_buf,
                     "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
-                    "d_a_gaussian_2d_culled": a_guassian_2d_culled_grad_buf,
                 }
             )
             
