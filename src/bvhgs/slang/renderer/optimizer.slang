@@ -38,7 +38,8 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   update.rotation = m_hat.rotation / (sqrt(v_hat.rotation) + EPS_ADAMW);
   update.color = m_hat.color / (sqrt(v_hat.color) + EPS_ADAMW);
   update.opacity = m_hat.opacity / (sqrt(v_hat.opacity) + EPS_ADAMW);
-
+  
+  // decoupled weight decay
   param.position -= param.position * (lr * weightDecay);
   param.rotation -= param.rotation * (lr * weightDecay);
   param.color -= param.color * (lr * weightDecay);
