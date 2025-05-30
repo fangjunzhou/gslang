@@ -33,14 +33,13 @@ if __name__ == "__main__":
     # Load scene
     gaussians = GaussianCloud()
     if not args.colmap:
-        gaussians.load_from_ply(path)
+        gaussians.load_from_ply(args.path)
     else:
-        gaussians.load_from_colmap(path)
+        gaussians.load_from_colmap(args.path)
 
     # Initialize and run the application
     App(
-        path=args.path,
-        is_colmap=args.colmap,
+        gaussians,
         resolution=tuple(args.resolution),
         focal_length=args.focal_length,
     ).run()

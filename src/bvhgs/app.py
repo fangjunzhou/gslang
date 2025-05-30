@@ -1,24 +1,18 @@
 from typing import Tuple
 import slangpy as spy
-from pathlib import Path
 import numpy as np
 from pyglm import glm
-import quaternion
-import argparse
 
 from bvhgs import device
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.camera import Camera
 from bvhgs.renderer import Renderer
-from bvhgs.data import SFMDataset
-import pathlib
 
 
 class App:
     def __init__(
         self,
-        path: Path,
-        is_colmap: bool = False,
+        gaussians: GaussianCloud,
         resolution: Tuple[int, int] = (800, 600),
         focal_length: float = 580,
     ):
@@ -37,13 +31,6 @@ class App:
 
         # UI context
         self.ui = spy.ui.Context(self.device)
-
-        # Load scene
-        gaussians = GaussianCloud()
-        if not is_colmap:
-            gaussians.load_from_ply(path)
-        else:
-            gaussians.load_from_colmap(path)
 
         # Initialize camera and cursor at scene center
         self.cursor = glm.vec3(0, 0, 0)
