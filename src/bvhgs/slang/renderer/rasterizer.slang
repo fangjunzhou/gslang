@@ -145,9 +145,9 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
         d_a_gaussian_2d_sorted[i][(j + tid.x) % 11].add(d[(j + tid.x) % 11]);
       } else {
         // Waveactivesum the gradient if not crossing tile boundaries.
-        float sum = WaveActiveSum(d[j]);
+        float sum = WaveActiveSum(d[(j + gid.x) % 11]);
         if (WaveIsFirstLane()) {
-          d_a_gaussian_2d_sorted[i][j].add(sum);
+          d_a_gaussian_2d_sorted[i][(j + gid.x) % 11].add(sum);
         }
       }
     }
