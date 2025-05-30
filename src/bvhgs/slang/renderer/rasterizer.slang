@@ -85,8 +85,11 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
   uint tileId = tile.y * TILE_SHAPE.x + tile.x;
 
   // Get the group start and end tile ids.
-  float2 groupStartUv = float2(gid) * float2(8, 8);
-  float2 groupEndUv = groupStartUv + float2(8, 8);
+  float2 groupStartUv = (float2(gid) * float2(8, 4) + float2(0.5, 0.5)) /
+                        float2(g_camera.sensorSize);
+  float2 groupEndUv =
+      (float2(gid) * float2(8, 4) + float2(8, 4) - float2(0.5, 0.5)) /
+      float2(g_camera.sensorSize);
   uint2 groupStartTile = uint2(groupStartUv / tileSize);
   uint2 groupEndTile = uint2(groupEndUv / tileSize);
   // Check if thread group crosses tile boundaries.
@@ -106,12 +109,12 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
   // Loop over the gaussians in the tile.
   uint n = g_num_rendered_gaussians[tid];
   if (n > tileLength) n = tileLength;  // Safety check to avoid invalid n values
-  for (uint idx = 0; idx < tileLength; idx++) {
+  uint maxN = WaveActiveMax(n);
+  for (uint idx = 0; idx < maxN; idx++) {
     // Calculate index in reverse order, with safety check
-    uint reverse_idx =
-        tileLength - idx - 1;  // This ensures we stay within bounds
+    uint reverse_idx = maxN - idx - 1;  // This ensures we stay within bounds
     uint i = tileOffs + reverse_idx;
-    if (i >= n)
+    if (reverse_idx >= n)
       continue;  // Skip if index exceeds the number of rendered gaussians
 
     // Get the gaussian.
