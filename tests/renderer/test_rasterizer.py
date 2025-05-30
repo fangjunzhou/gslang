@@ -363,3 +363,97 @@ def test_rasterize_benchmark(benchmark: BenchmarkFixture, setup_rasterize_data):
     # Optionally validate results - here we just check that the render target contains data
     rendered_image = setup_rasterize_data["render_target"].to_numpy()
     assert np.any(rendered_image > 0), "Rendered image should contain some pixel data"
+
+
+@pytest.fixture
+def setup_bwd_rasterize_data(setup_rasterize_data):
+    """Set up all the necessary buffers and data for the bwdRasterize kernel.
+    
+    :param setup_rasterize_data: The data setup from the forward rasterize fixture.
+    :return: Dictionary containing all buffers and the kernel needed for backward rasterization.
+    """
+    data = setup_rasterize_data.copy()  # Start with forward rasterize data
+
+    # Run the rasterize kernel
+    run_rasterize_kernel(data)
+    
+    # Load required modules
+    module = device.load_module("renderer.slang")
+    program = device.link_program([module], [])
+    
+    # Create bwdRasterize kernel
+    ker_bwd_rasterize = device.create_compute_kernel(
+        device.link_program([module], [module.entry_point("bwdRasterize")])
+    )
+    
+    # Create the gradient texture (simulating loss gradient passed from optimization)
+    grad_texture = device.create_texture(
+        type=spy.TextureType.texture_2d,
+        format=spy.Format.rgba32_float,
+        width=data["camera"].sensor_size.x,
+        height=data["camera"].sensor_size.y,
+        usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
+    )
+    
+    # Fill gradient texture with simple values for benchmark
+    camera = data["camera"]
+    shape = (camera.sensor_size.y, camera.sensor_size.x, 4)
+    grad_data = np.ones(shape, dtype=np.float32) * 0.1
+    grad_texture.copy_from_numpy(grad_data)
+    
+    # Create buffer for gradient of gaussians
+    a_gaussian_2d_sorted_grad_buf = device.create_buffer(
+        element_count=data["num_table_entries"],
+        struct_type=program.reflection.d_a_gaussian_2d_sorted,
+        usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
+    )
+    
+    # Add new resources to the data dict
+    data["bwd_kernel"] = ker_bwd_rasterize
+    data["grad_texture"] = grad_texture
+    data["a_gaussian_2d_sorted_grad_buf"] = a_gaussian_2d_sorted_grad_buf
+    
+    return data
+
+
+def run_bwd_rasterize_kernel(data):
+    """Run the bwdRasterize kernel with the provided data.
+    
+    :param data: The data setup from the setup_bwd_rasterize_data fixture.
+    """
+    # Run the backward rasterize kernel
+    data["bwd_kernel"].dispatch(
+        thread_count=[data["camera"].sensor_size.x, data["camera"].sensor_size.y, 1],
+        vars={
+            "g_camera": data["camera_slang"],
+            "g_tile_hist": data["tile_hist"],
+            "g_tile_offs": data["tile_offs"],
+            "g_gaussian_2d_sorted": data["gaussian_2d_sorted"],
+            "g_render_target": data["render_target"],
+            "d_render_target": data["grad_texture"],
+            "d_a_gaussian_2d_sorted": data["a_gaussian_2d_sorted_grad_buf"],
+            "g_num_rendered_gaussians": data["num_rendered_gaussians"]
+        }
+    )
+
+
+def test_bwd_rasterize_benchmark(benchmark: BenchmarkFixture, setup_bwd_rasterize_data):
+    """Benchmark the bwdRasterize kernel.
+
+    :param benchmark: The benchmark fixture.
+    :param setup_bwd_rasterize_data: The setup data for the backward rasterize kernel.
+    """
+    # Get the number of rounds from benchmark fixture (or default to 5)
+    num_rounds = getattr(benchmark, "_min_rounds", 5)
+    
+    # Benchmark the backward rasterize kernel
+    benchmark.pedantic(
+        run_bwd_rasterize_kernel,
+        args=(setup_bwd_rasterize_data,),
+        rounds=num_rounds,
+        iterations=1
+    )
+    
+    # Validate that gradients were written
+    grad_buffer_data = setup_bwd_rasterize_data["a_gaussian_2d_sorted_grad_buf"].to_numpy().view(np.float32)
+    assert np.any(grad_buffer_data != 0), "Backward pass should produce non-zero gradients"
