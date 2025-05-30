@@ -6,7 +6,7 @@
     "configurations": [
 
         {
-            "name": "test",
+            "name": "Debug Python File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
