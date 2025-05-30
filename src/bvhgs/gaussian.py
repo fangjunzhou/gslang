@@ -62,7 +62,7 @@ class GaussianCloud:
         }
 
     def randomize(
-        self, size: int, position_var: float = 1.0, scale_offst: float = 0
+        self, size: int, position_var: float = 1.0, scale_offst: float = 0, opacity_factor: float = 0
     ):
         """Randomize the Gaussian point cloud.
 
@@ -137,7 +137,7 @@ class GaussianCloud:
 
         self.num_gaussians = N
 
-    def load_from_colmap(self, path: pathlib.Path, scale_factor: float = -3.0):
+    def load_from_colmap(self, path: pathlib.Path, scale_factor: float = -3.0, opacity_factor: float = 0):
         """Load a Gaussian point cloud from a COLMAP sparse file.
 
         :param path: dir to the COLMAP sparse file.
@@ -170,7 +170,7 @@ class GaussianCloud:
         self.scales = np.ones((len(points), 3), dtype=np.float32) * scale_factor
         self.colors = np.ascontiguousarray(colors, dtype=np.float32)
         # opacity=0.5
-        self.opacities = np.full((len(points), 1), 0, dtype=np.float32)
+        self.opacities = np.full((len(points), 1), opacity_factor, dtype=np.float32)
         self.spherical_harmonics = np.zeros(
             (len(points), 15, 3), dtype=np.float32
         )
