@@ -131,6 +131,20 @@ class Renderer:
             )
         )
 
+        # Densification kernel
+        self.ker_mark_duplicated = device.create_compute_kernel(
+            device.link_program(
+                [renderer_module],
+                [renderer_module.entry_point("markDuplicate")],
+            )
+        )
+        self.ker_densify = device.create_compute_kernel(
+            device.link_program(
+                [renderer_module],
+                [renderer_module.entry_point("densify")],
+            )
+        )
+
         # Create a render texture for rendering.
         self.render_target = device.create_texture(
             type=spy.TextureType.texture_2d,
@@ -287,7 +301,7 @@ class Renderer:
     def image_loss(self, src: jnp.ndarray, dst: jnp.ndarray):
         return jnp.mean((dst - src) ** 2)
 
-    def render(self, gt_image: Image.Image | None = None) -> float:
+    def render(self, gt_image: Image.Image | None = None, use_densify: bool = False, densify_scale: float = 1.0) -> float:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
@@ -316,8 +330,7 @@ class Renderer:
         )
         # Cull the Gaussian points.
         inside_offset_buf = prefix_sum(inside_flag_buf)
-        inside_arr = inside_flag_buf.to_numpy().view(np.uint32)
-        num_viewing = np.sum(inside_arr).item()
+        num_viewing = inside_offset_buf.to_numpy().view(np.uint32)[-1].item()
         if num_viewing == 0:
             logger.debug("No Gaussian points inside the camera frustum.")
             return 0.0
@@ -574,6 +587,88 @@ class Renderer:
                 )
                 logger.debug(f"Gaussian 3D Points Max: {np.max(arr, axis=0)}")
                 logger.debug(f"Gaussian 3D Points Min: {np.min(arr, axis=0)}")
+    
+        def densify():
+            """Densify the Gaussian points."""
+            duplicate_flag_buf = device.create_buffer(
+                element_count=self.num_gaussians,
+                struct_type=self.program.reflection.g_duplicate_flag,
+                usage=spy.BufferUsage.shader_resource
+                | spy.BufferUsage.unordered_access,
+            )
+
+            # Mark duplicated Gaussian points.
+            self.ker_mark_duplicated.dispatch(
+                thread_count=[self.num_gaussians, 1, 1],
+                threashold=0.0002,
+                vars={
+                    "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
+                    "g_inside_flag": inside_flag_buf,
+                    "g_inside_offset": inside_offset_buf,
+                    "g_duplicate_flag": duplicate_flag_buf,
+                },
+            )
+
+            # Prefix sum the duplicate flag to get the number of duplicated points.
+            duplicate_flag_prefix_buf = prefix_sum(duplicate_flag_buf)
+            # Get the number of new Gaussian points.
+            num_new_gaussians = duplicate_flag_prefix_buf.to_numpy().view(
+                np.uint32
+            )[-1].item()
+
+            logger.info(
+                f"Number of new Gaussian points to be added: {num_new_gaussians}"
+            )
+            if num_new_gaussians == 0:
+                logger.debug("No new Gaussian points to be added.")
+                return
+
+            # Old gaussian buffer.
+            old_gaussian_3d_buf = self.gaussian_3d_buf
+            # Create a new buffer for the Gaussian points.
+            self.gaussian_3d_buf = device.create_buffer(
+                element_count=self.num_gaussians + num_new_gaussians,
+                struct_type=self.program.reflection.g_gaussian_3d,
+                usage=spy.BufferUsage.shader_resource
+                | spy.BufferUsage.unordered_access,
+            )
+            # Densify the Gaussian points.
+            self.ker_densify.dispatch(
+                thread_count=[self.num_gaussians, 1, 1],
+                numSrc=self.num_gaussians,
+                underConstructionScale= densify_scale,
+                vars={
+                    "g_gaussian_3d": self.gaussian_3d_buf,
+                    "g_gaussian_3d_src": old_gaussian_3d_buf,
+                    "g_duplicate_flag": duplicate_flag_buf,
+                    "g_duplicate_prefix": duplicate_flag_prefix_buf,
+                    "d_gaussian_3d": self.gaussian_3d_grad_buf,
+                },
+            )
+            # Create a new buffer for the Gaussian gradients.
+            self.gaussian_3d_grad_buf = device.create_buffer(
+                element_count=self.num_gaussians + num_new_gaussians,
+                struct_type=self.program.reflection.d_gaussian_3d,
+                usage=spy.BufferUsage.shader_resource
+                | spy.BufferUsage.unordered_access,
+            )
+            self.m_buf = device.create_buffer(
+                element_count=self.num_gaussians + num_new_gaussians,
+                struct_type=self.program.reflection.m_gaussian_3d,
+                usage=spy.BufferUsage.shader_resource
+                | spy.BufferUsage.unordered_access,
+            )
+            self.v_buf = device.create_buffer(
+                element_count=self.num_gaussians + num_new_gaussians,
+                struct_type=self.program.reflection.v_gaussian_3d,
+                usage=spy.BufferUsage.shader_resource
+                | spy.BufferUsage.unordered_access,
+            )
+            # Update the number of Gaussian points.
+            self.num_gaussians += num_new_gaussians
+
+        if use_densify:
+            densify()
 
         return loss
 

@@ -7,6 +7,8 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 from enum import Enum
+from pyglm import glm
+import logging
 
 from bvhgs.app import App
 from bvhgs.camera import Camera
@@ -20,21 +22,26 @@ class TrainingConfig:
     """Configuration for the BVHGS training process."""
 
     num_epochs: int = 64
-    batch_size: int = 32
     # Learning rate and decay parameters.
     learning_rate: float = 1e-3
     position_lr_factor: float = 1.0
+    pos_lr_decay_rate: float = 0.99
     rotation_lr_factor: float = 1.0
     scale_lr_factor: float = 1.0
-    color_lr_factor: float = 1.0
-    opacity_lr_factor: float = 1.0
+    color_lr_factor: float = 2.0
+    opacity_lr_factor: float = 2.0
     sh_lr_factor: float = 1.0
-    gamma: float = 0.95
-    decay_steps: int = 8
+    decay_steps: int = 16
     # Adam optimizer parameters.
     beta1: float = 0.9
     beta2: float = 0.999
     weight_decay: float = 1e-4
+    # Warmup parameters.
+    warmup_levels: int = 4
+    warmup_steps: int = 250
+    # Densification parameters.
+    densify_steps: int = 50
+    densify_scale: float = 1e-2
 
 
 class TrainerStateType(Enum):
@@ -42,7 +49,6 @@ class TrainerStateType(Enum):
 
     STEP = "step"
     EPOCH = "epoch"
-    OPTM = "optimizer_step"
 
 
 @dataclass
@@ -66,16 +72,19 @@ def trainer_worker(
     conn: Connection,
 ):
     """Main function to run the BVHGS trainer."""
+    # logging.basicConfig(
+    #     level=logging.INFO
+    # )
     # Load scene
     gaussians = GaussianCloud()
-    gaussians.load_from_colmap(colmap_path, scale_factor=-5, opacity_factor=0)
-    # gaussians.randomize(
-    #     100000,
-    #     position_var=2.5,
-    #     scale_var=0.01,
-    #     scale_offst=-4,
-    #     opacity_factor=-4,
-    # )
+    # gaussians.load_from_colmap(colmap_path, scale_factor=-4, opacity_factor=-3)
+    gaussians.randomize(
+        size=100000,
+        position_var=5.0,
+        scale_var=0.25,
+        scale_offst=-4,
+        opacity_factor=-4,
+    )
 
     # Load SFM Dataset
     sfm_dataset = SFMDataset()
@@ -98,6 +107,7 @@ def trainer_worker(
 
     # Training loop.
     curr_lr = training_config.learning_rate
+    curr_pos_decay = 1
     optm_step = 0
     for epoch in range(training_config.num_epochs):
         running_loss = 0.0
@@ -105,14 +115,30 @@ def trainer_worker(
         indices = np.random.permutation(len(sfm_dataset))
         for step, idx in enumerate(indices):
             camera, image_path = sfm_dataset[idx]
-            renderer.set_camera(camera)
             # Load image.
             image = Image.open(image_path)
+            # Warmup training.
+            if optm_step < training_config.warmup_steps * training_config.warmup_levels:
+                curr_level = optm_step // training_config.warmup_steps
+                down_sample_factor = 2 ** (training_config.warmup_levels - curr_level)
+                image = image.resize(
+                    (image.width // down_sample_factor, image.height // down_sample_factor)
+                )
+                camera = Camera(
+                    position=camera.position,
+                    rotation=camera.rotation,
+                    sensor_size=glm.uvec2(image.width, image.height),
+                    focal_length=camera.focal_length * down_sample_factor,
+                )
+
+            renderer.set_camera(camera)
+
             # Forward pass.
+            renderer.zero_grad()
             loss = renderer.render(image)
             # Backward pass and optimization.
             renderer.backward(
-                pos_lr=curr_lr * training_config.position_lr_factor,
+                pos_lr=curr_lr * training_config.position_lr_factor * curr_pos_decay,
                 rot_lr=curr_lr * training_config.rotation_lr_factor,
                 scale_lr=curr_lr * training_config.scale_lr_factor,
                 color_lr=curr_lr * training_config.color_lr_factor,
@@ -125,25 +151,14 @@ def trainer_worker(
             running_loss += loss
 
             # Optimizer step.
-            if (idx + 1) % training_config.batch_size == 0 or idx == len(
-                sfm_dataset
-            ) - 1:
-                optm_step += 1
-                if (optm_step + 1) % training_config.decay_steps == 0:
-                    curr_lr *= training_config.gamma
-                renderer.optimizer_step()
-                renderer.zero_grad()
-                state = TrainerState(
-                    type=TrainerStateType.OPTM,
-                    epoch=epoch,
-                    step=step,
-                    total_steps=len(sfm_dataset),
-                    loss=running_loss / (idx + 1),
-                    lr=curr_lr,
-                    num_gaussians=len(gaussians),
-                    gaussian_arr=renderer.gaussian_3d_buf.to_numpy(),
-                )
-                conn.send(state)
+            optm_step += 1
+            if (optm_step + 1) % training_config.decay_steps == 0:
+                curr_pos_decay *= training_config.pos_lr_decay_rate
+            renderer.optimizer_step()
+
+            # Densification step.
+            if (optm_step + 1) % training_config.densify_steps == 0:
+                renderer.render(image, use_densify=True, densify_scale=training_config.densify_scale)
 
             # Send the current state to the parent process.
             state = TrainerState(
@@ -165,7 +180,8 @@ def trainer_worker(
             total_steps=len(sfm_dataset),
             loss=avg_loss,
             lr=curr_lr,
-            num_gaussians=len(gaussians),
+            num_gaussians=renderer.num_gaussians,
+            gaussian_arr=renderer.gaussian_3d_buf.to_numpy()
         )
         conn.send(state)
 
@@ -258,15 +274,6 @@ if __name__ == "__main__":
                     loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
                 )
                 step_pbar.refresh()
-            elif state.type == TrainerStateType.OPTM:
-                # Update rendering scene.
-                if (
-                    state.gaussian_arr is not None
-                    and state.gaussian_arr.size > 0
-                ):
-                    app.renderer.sync_gaussians(
-                        state.gaussian_arr, state.num_gaussians
-                    )
 
     # Kill the trainer process if it's still running
     if trainer_process.is_alive():

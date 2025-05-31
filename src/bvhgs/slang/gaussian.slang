@@ -84,7 +84,6 @@ public struct Gaussian3D : IDifferentiable {
    * functions are precomputed using the input direction and constants (C0,
    * c1, ...).
    */
-  [Differentiable]
   public float3 sphericalHarmonics(float3 dir) {
     float y[SH_COUNT];
 

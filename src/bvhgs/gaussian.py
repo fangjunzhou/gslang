@@ -87,7 +87,7 @@ class GaussianCloud:
 
         self.colors = np.random.rand(size, 3).astype(np.float32)
         self.opacities = np.ones((size, 1)).astype(np.float32) * opacity_factor
-        self.spherical_harmonics = np.random.randn(size, 15, 3).astype(
+        self.spherical_harmonics = np.zeros((size, 15, 3)).astype(
             np.float32
         )
 
@@ -150,6 +150,8 @@ class GaussianCloud:
         path: pathlib.Path,
         scale_factor: float = -3.0,
         opacity_factor: float = 0,
+        add_random_gaussians: bool = False,
+        random_gaussians_size: int = 10000,
     ):
         """Load a Gaussian point cloud from a COLMAP sparse file.
 
@@ -190,3 +192,50 @@ class GaussianCloud:
             (len(points), 15, 3), dtype=np.float32
         )
         self.num_gaussians = len(points)
+
+        if add_random_gaussians:
+            pos_min = np.min(self.positions, axis=0)
+            pos_max = np.max(self.positions, axis=0)
+            random_positions = np.random.uniform(
+                pos_min, pos_max, (random_gaussians_size, 3)
+            ).astype(np.float32)
+            random_rotations = np.random.rand(
+                random_gaussians_size, 4
+            ).astype(np.float32)
+            random_rotations /= np.linalg.norm(
+                random_rotations, axis=1, keepdims=True
+            )
+            random_scales = (
+                np.ones((random_gaussians_size, 3)).astype(np.float32) * scale_factor
+            )
+            random_colors = np.random.rand(
+                random_gaussians_size, 3
+            ).astype(np.float32)
+            random_colors = np.log(
+                random_colors / (1 - random_colors + 1e-5) + 1e-5
+            )
+            random_opacities = np.full(
+                (random_gaussians_size, 1), opacity_factor, dtype=np.float32
+            )
+            random_sh = np.zeros(
+                (random_gaussians_size, 15, 3), dtype=np.float32
+            )
+            self.positions = np.concatenate(
+                (self.positions, random_positions), axis=0
+            )
+            self.rotations = np.concatenate(
+                (self.rotations, random_rotations), axis=0
+            )
+            self.scales = np.concatenate(
+                (self.scales, random_scales), axis=0
+            )
+            self.colors = np.concatenate(
+                (self.colors, random_colors), axis=0
+            )
+            self.opacities = np.concatenate(
+                (self.opacities, random_opacities), axis=0
+            )
+            self.spherical_harmonics = np.concatenate(
+                (self.spherical_harmonics, random_sh), axis=0
+            )
+            self.num_gaussians += random_gaussians_size

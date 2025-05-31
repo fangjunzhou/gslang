@@ -43,7 +43,13 @@ RWStructuredBuffer<Gaussian3D> d_gaussian_3d;
 RWStructuredBuffer<Gaussian3D> m_gaussian_3d;
 RWStructuredBuffer<Gaussian3D> v_gaussian_3d;
 
+// Adaptive density control.
+RWStructuredBuffer<uint> g_duplicate_flag;
+RWStructuredBuffer<uint> g_duplicate_prefix;
+RWStructuredBuffer<Gaussian3D> g_gaussian_3d_src;
+
 __include "./renderer/projection.slang";
 __include "./renderer/tile.slang";
 __include "./renderer/rasterizer.slang";
 __include "./renderer/optimizer.slang";
+__include "./renderer/adaptive-density-control.slang";
