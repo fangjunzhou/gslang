@@ -14,6 +14,12 @@ static const float C4 = sqrt(105.0 / PI);
 static const float C5 = sqrt(21.0 / (2.0 * PI));
 static const float C6 = sqrt(7.0 / PI);
 static const int SH_COUNT = 15;
+static const float3 defaultSH[SH_COUNT] = {
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0)
+};
 
 static const float BBOX_SIZE = 4;
 
@@ -27,23 +33,17 @@ public struct Gaussian3D : IDifferentiable {
 
   // Spherical harmonics.
   public float3 sh[SH_COUNT];
-  private static float3 defaultSH[SH_COUNT] = {
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0)
-  };
 
   public __init(float3 position = float3(0, 0, 0),
                 float4 rotation = float4(0, 0, 0, 1),
-                float3 scale = float3(1, 1, 1), float3 color = float3(1, 0, 1),
-                float opacity = 1, float3 shCoeffs[SH_COUNT] = defaultSH, ) {
+                float3 scale = float3(0, 0, 0), float3 color = float3(0, 0, 0),
+                float opacity = 0, float3 shCoeffs[SH_COUNT] = defaultSH) {
     this.position = position;
     this.rotation = rotation;
     this.scale = scale;
-    this.sh = shCoeffs;
     this.color = color;
     this.opacity = opacity;
+    this.sh = shCoeffs;
   }
 
   [Differentiable]
@@ -107,6 +107,7 @@ public struct Gaussian3D : IDifferentiable {
     y[14] = 0.25 * C3 * dir.x * (dir.x * dir.x - 3 * dir.y * dir.y);
 
     float3 result = float3(0, 0, 0);
+    [ForceUnroll]
     for (int i = 0; i < SH_COUNT; ++i) {
       result += y[i] * this.sh[i];
     }
@@ -117,6 +118,7 @@ public struct Gaussian3D : IDifferentiable {
 public Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
   // Add spherical harmonics coefficients.
   float3 sh[SH_COUNT];
+  [ForceUnroll]
   for (int i = 0; i < SH_COUNT; ++i) {
     sh[i] = a.sh[i] + b.sh[i];
   }
@@ -128,6 +130,7 @@ public Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
 public Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
   // Subtract spherical harmonics coefficients.
   float3 sh[SH_COUNT];
+  [ForceUnroll]
   for (int i = 0; i < SH_COUNT; ++i) {
     sh[i] = a.sh[i] - b.sh[i];
   }
@@ -139,6 +142,7 @@ public Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
 public Gaussian3D operator*(Gaussian3D g, float s) {
   // Scale the spherical harmonics coefficients.
   float3 sh[SH_COUNT];
+  [ForceUnroll]
   for (int i = 0; i < SH_COUNT; ++i) {
     sh[i] = g.sh[i] * s;
   }
@@ -149,6 +153,7 @@ public Gaussian3D operator*(Gaussian3D g, float s) {
 public Gaussian3D operator*(float s, Gaussian3D g) {
   // Scale the spherical harmonics coefficients.
   float3 sh[SH_COUNT];
+  [ForceUnroll]
   for (int i = 0; i < SH_COUNT; ++i) {
     sh[i] = g.sh[i] * s;
   }
@@ -159,6 +164,7 @@ public Gaussian3D operator*(float s, Gaussian3D g) {
 public Gaussian3D operator /(Gaussian3D g, float s) {
   // Scale the spherical harmonics coefficients.
   float3 sh[SH_COUNT];
+  [ForceUnroll]
   for (int i = 0; i < SH_COUNT; ++i) {
     sh[i] = g.sh[i] / s;
   }

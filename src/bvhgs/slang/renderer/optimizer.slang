@@ -26,6 +26,10 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   grad_sq.scale = grad.scale * grad.scale;
   grad_sq.color = grad.color * grad.color;
   grad_sq.opacity = grad.opacity * grad.opacity;
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; ++i) {
+    grad_sq.sh[i] = grad.sh[i] * grad.sh[i];
+  }
   v_gaussian_3d[tid] = v_old * beta2 + grad_sq * (1.0 - beta2);
 
   float bias_c1 = 1.0 - pow(beta1, float(step));
@@ -39,6 +43,10 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   update.scale = m_hat.scale / (sqrt(v_hat.scale) + EPS_ADAMW);
   update.color = m_hat.color / (sqrt(v_hat.color) + EPS_ADAMW);
   update.opacity = m_hat.opacity / (sqrt(v_hat.opacity) + EPS_ADAMW);
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; ++i) {
+    update.sh[i] = m_hat.sh[i] / (sqrt(v_hat.sh[i]) + EPS_ADAMW);
+  }
 
   // decoupled weight decay
   param.position -= param.position * (lr * weightDecay);
@@ -46,6 +54,10 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   param.scale -= param.scale * (lr * weightDecay);
   param.color -= param.color * (lr * weightDecay);
   param.opacity -= param.opacity * (lr * weightDecay);
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; ++i) {
+    param.sh[i] -= param.sh[i] * (lr * weightDecay);
+  }
 
   param = param - update * lr;
   param.rotation = normalize(param.rotation);

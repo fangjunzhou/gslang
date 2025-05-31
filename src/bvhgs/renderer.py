@@ -291,11 +291,6 @@ class Renderer:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
-        logger.debug(
-            "Rendering %d Gaussian points with camera parameters: %s",
-            self.num_gaussians,
-            camera_params,
-        )
         # Project the Gaussian points to screen space.
         gaussian_2d_buf = device.create_buffer(
             element_count=self.num_gaussians,
@@ -564,7 +559,7 @@ class Renderer:
                 arr = (
                     self.gaussian_3d_grad_buf.to_numpy()
                     .view(np.float32)
-                    .reshape(self.num_gaussians, -1, 4)[:, :5, :]
+                    .reshape(self.num_gaussians, -1, 4)[:, :8, :]
                 )
                 logger.debug(
                     f"Gaussian 3D Gradients Max: {np.max(arr, axis=0)}"
@@ -575,7 +570,7 @@ class Renderer:
                 arr = (
                     self.gaussian_3d_buf.to_numpy()
                     .view(np.float32)
-                    .reshape(self.num_gaussians, -1, 4)[:, :5, :]
+                    .reshape(self.num_gaussians, -1, 4)[:, :8, :]
                 )
                 logger.debug(f"Gaussian 3D Points Max: {np.max(arr, axis=0)}")
                 logger.debug(f"Gaussian 3D Points Min: {np.min(arr, axis=0)}")
