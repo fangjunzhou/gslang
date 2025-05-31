@@ -190,3 +190,35 @@ class GaussianCloud:
             (len(points), 15, 3), dtype=np.float32
         )
         self.num_gaussians = len(points)
+
+    def save_to_ply(self, path: pathlib.Path):
+        """Save the Gaussian point cloud to a PLY file.
+
+        :param path: path to the PLY file.
+        """
+        if not path.parent.exists():
+            raise FileNotFoundError(f"Directory {path.parent} does not exist.")
+
+        # Create a DataFrame from the Gaussian data.
+        data = {
+            "x": self.positions[:, 0],
+            "y": self.positions[:, 1],
+            "z": self.positions[:, 2],
+            "rot_0": self.rotations[:, 3],
+            "rot_1": self.rotations[:, 0],
+            "rot_2": self.rotations[:, 1],
+            "rot_3": self.rotations[:, 2],
+            "scale_0": self.scales[:, 0],
+            "scale_1": self.scales[:, 1],
+            "scale_2": self.scales[:, 2],
+            "f_dc_0": self.colors[:, 0],
+            "f_dc_1": self.colors[:, 1],
+            "f_dc_2": self.colors[:, 2],
+            "opacity": self.opacities[:, 0],
+        }
+        for i in range(45):
+            data[f"f_rest_{i}"] = self.spherical_harmonics[:, i // 3, i % 3]
+
+        df = pd.DataFrame(data)
+        cloud = PyntCloud(df)
+        cloud.to_file(str(path.resolve()), also_save=["mesh"])
