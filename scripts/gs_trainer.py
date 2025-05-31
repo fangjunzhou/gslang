@@ -66,8 +66,10 @@ class TrainerState:
 
 
 def trainer_worker(
-    colmap_path: Path,
+    path: Path,
+    is_colmap: bool,
     images_path: Path,
+    camera_path: Path | None,
     training_config: TrainingConfig,
     conn: Connection,
 ):
@@ -87,8 +89,16 @@ def trainer_worker(
     )
 
     # Load SFM Dataset
-    sfm_dataset = SFMDataset()
-    sfm_dataset.load_from_colmap(colmap_path, images_path)
+    if is_colmap:
+        gaussians.load_from_colmap(path, scale_factor=-4, opacity_factor=-2)
+        sfm_dataset = SFMDataset()
+        sfm_dataset.load_from_colmap(path, images_path)
+    else:
+        gaussians.load_from_ply(path)
+        sfm_dataset = SFMDataset()
+        assert camera_path is not None, "Camera path must be provided if not using COLMAP."
+        sfm_dataset.load_from_camera_json(camera_path , images_path)
+        
     # Init camera.
     camera = Camera()
     # Initialize renderer.
@@ -189,10 +199,23 @@ def trainer_worker(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BVHGS Trainer")
     parser.add_argument(
-        "colmap",
+        "path",
         type=Path,
-        help="Path to the COLMAP file containing Gaussian points",
+        help="Path to the file containing Gaussian points",
     )
+    parser.add_argument(
+        "--colmap",
+        action="store_true",
+        dest="is_colmap",
+        help="If the path is a COLMAP database file",
+    )
+    parser.add_argument(
+        "camera_path",
+        type=Path,
+        nargs="?",
+        help="Path to the camera file (required if not using --colmap)",
+    )
+        
     parser.add_argument(
         "images",
         type=Path,
@@ -204,11 +227,29 @@ if __name__ == "__main__":
         help="Path to the directory to save training outputs",
     )
     args = parser.parse_args()
-    if not args.colmap.exists():
-        raise FileNotFoundError(f"COLMAP path not found: {args.path}")
+    
+
+    camera_path = None
+    if not args.is_colmap:
+        if args.camera_path is None:
+            parser.error("You must provide a camera path if not using COLMAP.")
+        if not args.camera_path.exists():
+            raise FileNotFoundError(f"Camera path not found: {args.camera_path}")
+        camera_path = args.camera_path
+    
+            
+    is_colmap : bool = args.is_colmap
+        
+    if not args.path.exists():
+        raise FileNotFoundError(f"Path not found: {args.path}")
+
     if not args.images.exists():
         raise FileNotFoundError(f"Images path not found: {args.images}")
 
+
+            
+            
+            
     rendering_gaussians = GaussianCloud()
     rendering_gaussians.randomize(1)
     app = App(rendering_gaussians)
@@ -222,7 +263,7 @@ if __name__ == "__main__":
     # Start the trainer worker in a separate process
     trainer_process = mp.Process(
         target=trainer_worker,
-        args=(args.colmap, args.images, training_config, child_conn),
+        args=(args.path, is_colmap, args.images, camera_path, training_config, child_conn),
     )
 
     # Start the trainer process
@@ -262,6 +303,10 @@ if __name__ == "__main__":
                 ):
                     app.renderer.sync_gaussians(
                         state.gaussian_arr, state.num_gaussians
+                    )
+                if state.epoch > 0:
+                    app.renderer.to_ply(
+                        args.save_path / f"epoch_{state.epoch:03d}.ply"
                     )
             elif state.type == TrainerStateType.STEP:
                 # Update epoch progress bar

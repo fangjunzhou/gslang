@@ -10,6 +10,7 @@ from bvhgs.radix_sort import numpy_sort, radix_sort, stable_radix_sort
 import jax
 import jax.numpy as jnp
 from PIL import Image
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -717,3 +718,23 @@ class Renderer:
                 "v_gaussian_3d": self.v_buf,
             },
         )
+        
+        
+    def to_ply(self, path: Path):
+        gaussian_arr = (
+            self.gaussian_3d_buf.to_numpy()
+            .view(np.float32)
+            .reshape(self.num_gaussians, -1)
+        )
+        gaussians = GaussianCloud()
+        gaussians.positions = gaussian_arr[:, :3]
+        gaussians.rotations = gaussian_arr[:, 3:7]
+        gaussians.scales = gaussian_arr[:, 7:10]
+        gaussians.colors = gaussian_arr[:, 10:13]
+        gaussians.opacities = gaussian_arr[:, 13:14]
+        gaussians.spherical_harmonics = gaussian_arr[:, 14:].reshape(
+            self.num_gaussians, 15, 3
+        )
+        gaussians.num_gaussians = self.num_gaussians
+        gaussians.save_to_ply(path)
+        
