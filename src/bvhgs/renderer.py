@@ -631,7 +631,6 @@ class Renderer:
             .view(np.float32)
             .reshape(self.num_gaussians, -1)
         )
-        print(gaussian_arr[0])
         gaussians = GaussianCloud()
         gaussians.positions = gaussian_arr[:, :3]
         gaussians.rotations = gaussian_arr[:, 3:7]
