@@ -27,7 +27,7 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   grad_sq.color = grad.color * grad.color;
   grad_sq.opacity = grad.opacity * grad.opacity;
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     grad_sq.sh[i] = grad.sh[i] * grad.sh[i];
   }
   v_gaussian_3d[tid] = v_old * beta2 + grad_sq * (1.0 - beta2);
@@ -44,7 +44,7 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   update.color = m_hat.color / (sqrt(v_hat.color) + EPS_ADAMW);
   update.opacity = m_hat.opacity / (sqrt(v_hat.opacity) + EPS_ADAMW);
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     update.sh[i] = m_hat.sh[i] / (sqrt(v_hat.sh[i]) + EPS_ADAMW);
   }
 
@@ -55,7 +55,7 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   param.color -= param.color * (lr * weightDecay);
   param.opacity -= param.opacity * (lr * weightDecay);
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     param.sh[i] -= param.sh[i] * (lr * weightDecay);
   }
 

@@ -24,7 +24,7 @@ static const float3 defaultSH[SH_COUNT] = {
 static const float BBOX_SIZE = 4;
 
 public struct Gaussian3D : IDifferentiable {
-  public no_diff float3 position;
+  public float3 position;
   public float4 rotation;
   public float3 scale;
 
@@ -108,7 +108,7 @@ public struct Gaussian3D : IDifferentiable {
 
     float3 result = float3(0, 0, 0);
     [ForceUnroll]
-    for (int i = 0; i < SH_COUNT; ++i) {
+    for (int i = 0; i < SH_COUNT; i++) {
       result += y[i] * this.sh[i];
     }
     return result;
@@ -119,7 +119,7 @@ public Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
   // Add spherical harmonics coefficients.
   float3 sh[SH_COUNT];
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     sh[i] = a.sh[i] + b.sh[i];
   }
   return Gaussian3D(a.position + b.position, a.rotation + b.rotation,
@@ -131,7 +131,7 @@ public Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
   // Subtract spherical harmonics coefficients.
   float3 sh[SH_COUNT];
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     sh[i] = a.sh[i] - b.sh[i];
   }
   return Gaussian3D(a.position - b.position, a.rotation - b.rotation,
@@ -143,7 +143,7 @@ public Gaussian3D operator*(Gaussian3D g, float s) {
   // Scale the spherical harmonics coefficients.
   float3 sh[SH_COUNT];
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     sh[i] = g.sh[i] * s;
   }
   return Gaussian3D(g.position * s, g.rotation, g.scale * s, g.color * s,
@@ -154,7 +154,7 @@ public Gaussian3D operator*(float s, Gaussian3D g) {
   // Scale the spherical harmonics coefficients.
   float3 sh[SH_COUNT];
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     sh[i] = g.sh[i] * s;
   }
   return Gaussian3D(g.position * s, g.rotation, g.scale * s, g.color * s,
@@ -165,7 +165,7 @@ public Gaussian3D operator /(Gaussian3D g, float s) {
   // Scale the spherical harmonics coefficients.
   float3 sh[SH_COUNT];
   [ForceUnroll]
-  for (int i = 0; i < SH_COUNT; ++i) {
+  for (int i = 0; i < SH_COUNT; i++) {
     sh[i] = g.sh[i] / s;
   }
   return Gaussian3D(g.position / s, g.rotation, g.scale / s, g.color / s,
