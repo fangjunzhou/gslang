@@ -171,6 +171,11 @@ if __name__ == "__main__":
         type=Path,
         help="Path to the directory containing images for training",
     )
+    parser.add_argument(
+        "save_path",
+        type=Path,
+        help="Path to the directory to save training outputs",
+    )
     args = parser.parse_args()
     if not args.colmap.exists():
         raise FileNotFoundError(f"COLMAP path not found: {args.path}")
