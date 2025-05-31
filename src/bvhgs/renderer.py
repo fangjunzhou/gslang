@@ -586,7 +586,12 @@ class Renderer:
 
     def backward(
         self,
-        lr: float = 5.0,
+        pos_lr: float = 1e-3,
+        rot_lr: float = 1e-3,
+        scale_lr: float = 1e-3,
+        color_lr: float = 1e-3,
+        opacity_lr: float = 1e-3,
+        sh_lr: float = 1e-3,
         beta1: float = 0.9,
         beta2: float = 0.999,
         weight_decay: float = 0.01,
@@ -601,7 +606,12 @@ class Renderer:
 
         self.ker_grad_descent.dispatch(
             thread_count=[self.num_gaussians, 1, 1],
-            lr=lr,
+            pos_lr=pos_lr,
+            rot_lr=rot_lr,
+            scale_lr=scale_lr,
+            color_lr=color_lr,
+            opacity_lr=opacity_lr,
+            sh_lr=sh_lr,
             beta1=beta1,
             beta2=beta2,
             weightDecay=weight_decay,

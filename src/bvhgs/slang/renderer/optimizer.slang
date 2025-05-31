@@ -5,9 +5,12 @@ static const int SH_COUNT = 15;
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
-                           uniform float beta1, uniform float beta2,
-                           uniform float weightDecay, uniform uint step) {
+void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float pos_lr,
+                           uniform float rot_lr, uniform float scale_lr,
+                           uniform float color_lr, uniform float opacity_lr,
+                           uniform float sh_lr, uniform float beta1,
+                           uniform float beta2, uniform float weightDecay,
+                           uniform uint step) {
   // Gaussian3D gd = d_gaussian_3d[tid];
   // g_gaussian_3d[tid] = g_gaussian_3d[tid] - (lr * gd);
   // // Normalize the rotation quaternion.
@@ -49,18 +52,26 @@ void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float lr,
   }
 
   // decoupled weight decay
-  param.position -= param.position * (lr * weightDecay);
-  param.rotation -= param.rotation * (lr * weightDecay);
-  param.scale -= param.scale * (lr * weightDecay);
-  param.color -= param.color * (lr * weightDecay);
-  param.opacity -= param.opacity * (lr * weightDecay);
+  param.position -= param.position * (pos_lr * weightDecay);
+  param.rotation -= param.rotation * (rot_lr * weightDecay);
+  param.scale -= param.scale * (scale_lr * weightDecay);
+  param.color -= param.color * (color_lr * weightDecay);
+  param.opacity -= param.opacity * (opacity_lr * weightDecay);
   [ForceUnroll]
   for (int i = 0; i < SH_COUNT; i++) {
-    param.sh[i] -= param.sh[i] * (lr * weightDecay);
+    param.sh[i] -= param.sh[i] * (sh_lr * weightDecay);
   }
 
-  param = param - update * lr;
+  param.position -= update.position * pos_lr;
+  param.rotation -= update.rotation * rot_lr;
   param.rotation = normalize(param.rotation);
+  param.scale -= update.scale * scale_lr;
+  param.color -= update.color * color_lr;
+  param.opacity -= update.opacity * opacity_lr;
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    param.sh[i] -= update.sh[i] * sh_lr;
+  }
 
   g_gaussian_3d[tid] = param;
 }

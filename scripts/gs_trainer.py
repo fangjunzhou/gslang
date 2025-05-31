@@ -22,7 +22,13 @@ class TrainingConfig:
     num_epochs: int = 64
     batch_size: int = 32
     # Learning rate and decay parameters.
-    learning_rate: float = 2e-1
+    learning_rate: float = 1e-3
+    position_lr_factor: float = 1.0
+    rotation_lr_factor: float = 1.0
+    scale_lr_factor: float = 1.0
+    color_lr_factor: float = 1.0
+    opacity_lr_factor: float = 1.0
+    sh_lr_factor: float = 1.0
     gamma: float = 0.95
     decay_steps: int = 8
     # Adam optimizer parameters.
@@ -64,11 +70,11 @@ def trainer_worker(
     """Main function to run the BVHGS trainer."""
     # Load scene
     gaussians = GaussianCloud()
-    
+    gaussians.load_from_colmap(colmap_path, scale_factor=-5, opacity_factor=0)
     # gaussians.randomize(
     #     100000,
     #     position_var=2.5,
-    #     scale_var=0.25,
+    #     scale_var=0.01,
     #     scale_offst=-4,
     #     opacity_factor=-4,
     # )
@@ -116,7 +122,12 @@ def trainer_worker(
             loss = renderer.render(image)
             # Backward pass and optimization.
             renderer.backward(
-                lr=curr_lr / training_config.batch_size,
+                pos_lr=curr_lr * training_config.position_lr_factor,
+                rot_lr=curr_lr * training_config.rotation_lr_factor,
+                scale_lr=curr_lr * training_config.scale_lr_factor,
+                color_lr=curr_lr * training_config.color_lr_factor,
+                opacity_lr=curr_lr * training_config.opacity_lr_factor,
+                sh_lr=curr_lr * training_config.sh_lr_factor,
                 beta1=training_config.beta1,
                 beta2=training_config.beta2,
                 weight_decay=training_config.weight_decay,
