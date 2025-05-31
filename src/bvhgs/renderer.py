@@ -727,14 +727,25 @@ class Renderer:
             .reshape(self.num_gaussians, -1)
         )
         gaussians = GaussianCloud()
-        gaussians.positions = gaussian_arr[:, :3]
-        gaussians.rotations = gaussian_arr[:, 3:7]
-        gaussians.scales = gaussian_arr[:, 7:10]
-        gaussians.colors = gaussian_arr[:, 10:13]
-        gaussians.opacities = gaussian_arr[:, 13:14]
-        gaussians.spherical_harmonics = gaussian_arr[:, 14:].reshape(
-            self.num_gaussians, 15, 3
-        )
+        # Alignment on metal devices.
+        if device.info.type == spy.DeviceType.metal:
+            gaussians.positions = gaussian_arr[:, :3]
+            gaussians.rotations = gaussian_arr[:, 4:8]
+            gaussians.scales = gaussian_arr[:, 8:11]
+            gaussians.colors = gaussian_arr[:, 12:15]
+            gaussians.opacities = gaussian_arr[:, 16:17]
+            gaussians.spherical_harmonics = gaussian_arr[:, 18:18+15*4].reshape(
+                self.num_gaussians, 15, 4
+            )[:, :, :3]
+        else:
+            gaussians.positions = gaussian_arr[:, :3]
+            gaussians.rotations = gaussian_arr[:, 3:7]
+            gaussians.scales = gaussian_arr[:, 7:10]
+            gaussians.colors = gaussian_arr[:, 10:13]
+            gaussians.opacities = gaussian_arr[:, 13:14]
+            gaussians.spherical_harmonics = gaussian_arr[:, 14:].reshape(
+                self.num_gaussians, 15, 3
+            )
         gaussians.num_gaussians = self.num_gaussians
         gaussians.save_to_ply(path)
         
