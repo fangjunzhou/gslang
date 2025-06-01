@@ -1,5 +1,4 @@
 implementing "../renderer.slang";
-
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void markKeep(
@@ -8,7 +7,7 @@ void markKeep(
     uniform float opacityThreshold,
 ) {
   if (tid >= numSrc) return;
-  float opa = g_gaussian_3d[tid].opacity;
+  float opa = utils.sigmoid(g_gaussian_3d_src[tid].opacity);
   if (opa < opacityThreshold) {
     g_keep_flag[tid] = 0;
   } else {

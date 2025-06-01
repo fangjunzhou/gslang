@@ -4,6 +4,7 @@ import radix_sort;
 import camera;
 import bounding_box;
 import gaussian;
+import math;
 
 // Camera parameters.
 Camera g_camera;

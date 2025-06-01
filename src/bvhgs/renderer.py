@@ -716,9 +716,10 @@ class Renderer:
                 usage=spy.BufferUsage.shader_resource
                     | spy.BufferUsage.unordered_access,
             )
+            
             self.ker_mark_keep.dispatch(
                 thread_count=[self.num_gaussians, 1, 1],
-                threshold=gaussian_opacity_remove_threshold,
+                opacityThreshold=gaussian_opacity_remove_threshold,
                 numSrc=self.num_gaussians,
                 vars={
                     "g_gaussian_3d_src": self.gaussian_3d_buf, 
@@ -728,6 +729,7 @@ class Renderer:
             keep_prefix_buf = prefix_sum(keep_flag_buf)
             
             keep_prefix_np = keep_prefix_buf.to_numpy().view(np.uint32)
+            
             num_keep = int(keep_prefix_np[-1])
             
             old_gaussian_3d_buf = self.gaussian_3d_buf
@@ -783,6 +785,10 @@ class Renderer:
             self.m_buf = new_m_buf
             self.v_buf = new_v_buf
             self.num_gaussians = num_keep
+            
+            num_removal = self.num_gaussians - num_keep
+            logger.info(f"Removed {num_removal} Gaussian points by opacity thresholding.")
+            print(f"Removed {num_removal} Gaussian points by opacity thresholding.")
             
         gaussian_removal_by_opacity()
 
