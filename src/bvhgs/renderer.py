@@ -160,6 +160,13 @@ class Renderer:
                 [renderer_module.entry_point("removeGaussian")],
             )
         )
+        
+        self.ker_set_all_opacity = device.create_compute_kernel(
+            device.link_program(
+                [renderer_module],
+                [renderer_module.entry_point("setAllOpacity")],
+            )
+        )
 
         # Create a render texture for rendering.
         self.render_target = device.create_texture(
@@ -761,7 +768,7 @@ class Renderer:
                 usage=spy.BufferUsage.shader_resource
                     | spy.BufferUsage.unordered_access,
             )
-            
+            num_removal = self.num_gaussians - num_keep
             self.ker_remove_gaussian.dispatch(
                 thread_count=[self.num_gaussians, 1, 1],
                 numSrc=self.num_gaussians,
@@ -786,11 +793,24 @@ class Renderer:
             self.v_buf = new_v_buf
             self.num_gaussians = num_keep
             
-            num_removal = self.num_gaussians - num_keep
-            logger.info(f"Removed {num_removal} Gaussian points by opacity thresholding.")
-            print(f"Removed {num_removal} Gaussian points by opacity thresholding.")
             
+            logger.info(f"Removed {num_removal} Gaussian points by opacity thresholding.")
+        
+        
+        def set_all_opacity(new_opacity: float):
+            self.ker_set_all_opacity.dispatch(
+                thread_count=[self.num_gaussians, 1, 1],
+                numGaussians=self.num_gaussians,
+                newOpacity=new_opacity,
+                vars={
+                    "g_gaussian_3d": self.gaussian_3d_buf,
+                },
+            )
+            
+
+        
         gaussian_removal_by_opacity()
+        set_all_opacity(-3.0) #pre sigmoid -3.0
 
 
     def optimizer_set_step(self, step: int):

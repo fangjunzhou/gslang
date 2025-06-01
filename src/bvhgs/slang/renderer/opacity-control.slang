@@ -29,3 +29,13 @@ void removeGaussian(uint tid: SV_DispatchThreadID, uniform uint numSrc) {
     v_gaussian_3d[dst] = v_gaussian_3d_src[tid];
   }
 }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void setAllOpacity(uint tid: SV_DispatchThreadID,
+                   uniform uint numGaussians,
+                   uniform float newOpacity) 
+{
+  if (tid >= numGaussians) return;
+  g_gaussian_3d[tid].opacity = newOpacity;
+}

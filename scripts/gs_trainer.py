@@ -42,8 +42,8 @@ class TrainingConfig:
     # Densification parameters.
     densify_steps: int = 100
     densify_scale: float = 1
-    correction_steps: int = 300
-    gaussian_removal_threshold: float = 0.12
+    correction_steps: int = 3000
+    gaussian_removal_threshold: float = 0.01
 
 class TrainerStateType(Enum):
     """Enumeration for the type of trainer state."""
