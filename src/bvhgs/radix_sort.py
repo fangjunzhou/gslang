@@ -26,6 +26,7 @@ def radix_sort(
     src_buf: spy.Buffer,
     bits_per_pass: int = 8,
     total_bits: Optional[int] = None,
+    entry_per_thread: int = 64,
 ) -> spy.Buffer:
     if total_bits is None:
         total_bits = 8
@@ -33,6 +34,8 @@ def radix_sort(
     n = src_buf.size // src_buf.struct_size
     buckets = 1 << bits_per_pass
     mask = buckets - 1
+    num_thread = n + entry_per_thread - 1
+    num_thread //= entry_per_thread
 
     dst_buf = device.create_buffer(
         element_count=n,
@@ -40,19 +43,21 @@ def radix_sort(
         usage=spy.BufferUsage.shader_resource
         | spy.BufferUsage.unordered_access,
     )
-
+    # Todo: change histogram buffer to per thread histogram
     hist_buf = device.create_buffer(
         element_count=buckets,
         struct_type=prog_bld.reflection.buildHist.state.hist,
         usage=spy.BufferUsage.shader_resource
         | spy.BufferUsage.unordered_access,
     )
+    # todo: change offsets buffer to per thread offsets
     offs_buf = device.create_buffer(
         element_count=buckets,
         struct_type=prog_clr.reflection.clearHist.state.offs,
         usage=spy.BufferUsage.shader_resource
         | spy.BufferUsage.unordered_access,
     )
+    # todo: add global offsets buffer
 
     for shift in range(0, total_bits, bits_per_pass):
         state = {
