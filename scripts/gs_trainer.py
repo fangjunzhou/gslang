@@ -195,6 +195,9 @@ def trainer_worker(
 
             if (optm_step + 1) % training_config.reset_opacity_steps == 0:
                 need_reset_opacity = True
+            # Do not reset opacity in the last few epochs.
+            if epoch >= training_config.num_epochs - 4:
+                need_reset_opacity = False
 
             if (optm_step + 1) % training_config.opacity_prune_step == 0 and (
                 optm_step + 1
