@@ -42,7 +42,8 @@ class TrainingConfig:
     # Densification parameters.
     densify_steps: int = 100
     densify_scale: float = 1
-
+    correction_steps: int = 100
+    gaussian_removal_threshold: float = 0.1
 
 class TrainerStateType(Enum):
     """Enumeration for the type of trainer state."""
@@ -82,18 +83,18 @@ def trainer_worker(
 
     # Load SFM Dataset
     if is_colmap:
-        # gaussians.load_from_colmap(
-        #     path,
-        #     scale_factor=-4,
-        #     opacity_factor=-2,
-        #     add_random_gaussians=True,
-        #     num_random_gaussians=50000,
-        #     random_gaussian_position_range=10,
-        #     random_gaussian_scale=-2,
-        # )
-        gaussians.randomize(
-            size=100000,
-            )
+        gaussians.load_from_colmap(
+            path,
+            scale_factor=-4,
+            opacity_factor=-2,
+            add_random_gaussians=True,
+            num_random_gaussians=50000,
+            random_gaussian_position_range=10,
+            random_gaussian_scale=-2,
+        )
+        # gaussians.randomize(
+        #     size=100000,
+        #     )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
     else:
@@ -129,6 +130,8 @@ def trainer_worker(
         # Shuffle indices for the dataset.
         indices = np.random.permutation(len(sfm_dataset))
         for step, idx in enumerate(indices):
+            need_density = False
+            need_correction = False
             camera, image_path = sfm_dataset[idx]
             # Load image.
             image = Image.open(image_path)
@@ -174,7 +177,9 @@ def trainer_worker(
                 weight_decay=training_config.weight_decay,
             )
             running_loss += loss
-
+            if optm_step == 0:
+                renderer.recalcuate_avg_3dgs_size()
+                
             # Optimizer step.
             optm_step += 1
             if (optm_step + 1) % training_config.decay_steps == 0:
@@ -183,12 +188,20 @@ def trainer_worker(
 
             # Densification step.
             if (optm_step + 1) % training_config.densify_steps == 0:
+                need_density = True
+
+            if (optm_step + 1) % training_config.correction_steps == 0:
+                need_correction = True
+  
+            if need_density or need_correction:
                 renderer.render(
                     image,
-                    use_densify=True,
+                    use_densify=need_density,
                     densify_scale=training_config.densify_scale,
+                    use_correction=need_correction,
+                    gaussian_opacity_remove_threshold=training_config.gaussian_removal_threshold,
                 )
-
+            
             # Send the current state to the parent process.
             state = TrainerState(
                 type=TrainerStateType.STEP,

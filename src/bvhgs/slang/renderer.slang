@@ -9,6 +9,7 @@ import gaussian;
 Camera g_camera;
 // Gaussian point cloud in world space.
 RWStructuredBuffer<Gaussian3D> g_gaussian_3d;
+
 // Gaussian point cloud in screen space.
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d;
 // Culled 2D gaussian point cloud in screen space.
@@ -48,8 +49,16 @@ RWStructuredBuffer<uint> g_duplicate_flag;
 RWStructuredBuffer<uint> g_duplicate_prefix;
 RWStructuredBuffer<Gaussian3D> g_gaussian_3d_src;
 
+// opacity control
+RWStructuredBuffer<uint> g_keep_flag;
+RWStructuredBuffer<uint> g_keep_prefix;
+RWStructuredBuffer<Gaussian3D> d_gaussian_3d_src;
+RWStructuredBuffer<Gaussian3D> m_gaussian_3d_src;
+RWStructuredBuffer<Gaussian3D> v_gaussian_3d_src;
+
 __include "./renderer/projection.slang";
 __include "./renderer/tile.slang";
 __include "./renderer/rasterizer.slang";
 __include "./renderer/optimizer.slang";
 __include "./renderer/adaptive-density-control.slang";
+__include "./renderer/opacity-control.slang";
