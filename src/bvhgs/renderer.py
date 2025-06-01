@@ -328,10 +328,11 @@ class Renderer:
         self,
         gt_image: Image.Image | None = None,
         use_densify: bool = False,
-        use_correction: bool = False,
+        use_opacity_prune: bool = False,
+        use_reset_opacity: bool = False,
         densify_scale: float = 1.0,
         overConstructionShrinkScale: float = 1.6,
-        gaussian_opacity_remove_threshold: float = -3,
+        gaussian_opacity_prune_threshold: float = -3,
     ) -> float:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
@@ -704,10 +705,13 @@ class Renderer:
             # Update the number of Gaussian points.
             self.num_gaussians += num_new_gaussians
 
-        if use_correction:
-            self.run_correction(
-                gaussian_opacity_remove_threshold=gaussian_opacity_remove_threshold
+        if use_opacity_prune:
+            self.gaussian_removal_by_opacity(
+                gaussian_opacity_prune_threshold=gaussian_opacity_prune_threshold
             )
+
+        if use_reset_opacity:
+            self.set_all_opacity(gaussian_opacity_prune_threshold - 0.1)
 
         if use_densify:
             self.recalcuate_avg_3dgs_size()
@@ -715,100 +719,98 @@ class Renderer:
 
         return loss
 
-    def run_correction(self, gaussian_opacity_remove_threshold: float):
-        def gaussian_removal_by_opacity():
-            keep_flag_buf = device.create_buffer(
-                element_count=self.num_gaussians,
-                struct_type=self.program.reflection.g_keep_flag,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
+    def gaussian_removal_by_opacity(
+        self, gaussian_opacity_prune_threshold: float
+    ):
+        keep_flag_buf = device.create_buffer(
+            element_count=self.num_gaussians,
+            struct_type=self.program.reflection.g_keep_flag,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
 
-            self.ker_mark_keep.dispatch(
-                thread_count=[self.num_gaussians, 1, 1],
-                opacityThreshold=gaussian_opacity_remove_threshold,
-                numSrc=self.num_gaussians,
-                vars={
-                    "g_gaussian_3d_src": self.gaussian_3d_buf,
-                    "g_keep_flag": keep_flag_buf,
-                },
-            )
-            keep_prefix_buf = prefix_sum(keep_flag_buf)
+        self.ker_mark_keep.dispatch(
+            thread_count=[self.num_gaussians, 1, 1],
+            opacityThreshold=gaussian_opacity_prune_threshold,
+            numSrc=self.num_gaussians,
+            vars={
+                "g_gaussian_3d_src": self.gaussian_3d_buf,
+                "g_keep_flag": keep_flag_buf,
+            },
+        )
+        keep_prefix_buf = prefix_sum(keep_flag_buf)
 
-            keep_prefix_np = keep_prefix_buf.to_numpy().view(np.uint32)
+        keep_prefix_np = keep_prefix_buf.to_numpy().view(np.uint32)
 
-            num_keep = int(keep_prefix_np[-1])
+        num_keep = int(keep_prefix_np[-1])
 
-            old_gaussian_3d_buf = self.gaussian_3d_buf
-            old_d_gaussian_3d_buf = self.gaussian_3d_grad_buf
-            old_m_buf = self.m_buf
-            old_v_buf = self.v_buf
+        old_gaussian_3d_buf = self.gaussian_3d_buf
+        old_d_gaussian_3d_buf = self.gaussian_3d_grad_buf
+        old_m_buf = self.m_buf
+        old_v_buf = self.v_buf
 
-            new_gaussian_3d_buf = device.create_buffer(
-                element_count=num_keep,
-                struct_type=self.program.reflection.g_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            new_d_gaussian_3d_buf = device.create_buffer(
-                element_count=num_keep,
-                struct_type=self.program.reflection.d_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            new_m_buf = device.create_buffer(
-                element_count=num_keep,
-                struct_type=self.program.reflection.m_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            new_v_buf = device.create_buffer(
-                element_count=num_keep,
-                struct_type=self.program.reflection.v_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            num_removal = self.num_gaussians - num_keep
-            self.ker_remove_gaussian.dispatch(
-                thread_count=[self.num_gaussians, 1, 1],
-                numSrc=self.num_gaussians,
-                vars={
-                    "g_gaussian_3d_src": old_gaussian_3d_buf,
-                    "d_gaussian_3d_src": old_d_gaussian_3d_buf,
-                    "m_gaussian_3d_src": old_m_buf,
-                    "v_gaussian_3d_src": old_v_buf,
-                    "g_keep_flag": keep_flag_buf,
-                    "g_keep_prefix": keep_prefix_buf,
-                    # target buffers
-                    "g_gaussian_3d": new_gaussian_3d_buf,
-                    "d_gaussian_3d": new_d_gaussian_3d_buf,
-                    "m_gaussian_3d": new_m_buf,
-                    "v_gaussian_3d": new_v_buf,
-                },
-            )
+        new_gaussian_3d_buf = device.create_buffer(
+            element_count=num_keep,
+            struct_type=self.program.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        new_d_gaussian_3d_buf = device.create_buffer(
+            element_count=num_keep,
+            struct_type=self.program.reflection.d_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        new_m_buf = device.create_buffer(
+            element_count=num_keep,
+            struct_type=self.program.reflection.m_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        new_v_buf = device.create_buffer(
+            element_count=num_keep,
+            struct_type=self.program.reflection.v_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        num_removal = self.num_gaussians - num_keep
+        self.ker_remove_gaussian.dispatch(
+            thread_count=[self.num_gaussians, 1, 1],
+            numSrc=self.num_gaussians,
+            vars={
+                "g_gaussian_3d_src": old_gaussian_3d_buf,
+                "d_gaussian_3d_src": old_d_gaussian_3d_buf,
+                "m_gaussian_3d_src": old_m_buf,
+                "v_gaussian_3d_src": old_v_buf,
+                "g_keep_flag": keep_flag_buf,
+                "g_keep_prefix": keep_prefix_buf,
+                # target buffers
+                "g_gaussian_3d": new_gaussian_3d_buf,
+                "d_gaussian_3d": new_d_gaussian_3d_buf,
+                "m_gaussian_3d": new_m_buf,
+                "v_gaussian_3d": new_v_buf,
+            },
+        )
 
-            self.gaussian_3d_buf = new_gaussian_3d_buf
-            self.gaussian_3d_grad_buf = new_d_gaussian_3d_buf
-            self.m_buf = new_m_buf
-            self.v_buf = new_v_buf
-            self.num_gaussians = num_keep
+        self.gaussian_3d_buf = new_gaussian_3d_buf
+        self.gaussian_3d_grad_buf = new_d_gaussian_3d_buf
+        self.m_buf = new_m_buf
+        self.v_buf = new_v_buf
+        self.num_gaussians = num_keep
 
-            logger.info(
-                f"Removed {num_removal} Gaussian points by opacity thresholding."
-            )
+        logger.info(
+            f"Removed {num_removal} Gaussian points by opacity thresholding."
+        )
 
-        def set_all_opacity(new_opacity: float):
-            self.ker_set_all_opacity.dispatch(
-                thread_count=[self.num_gaussians, 1, 1],
-                numGaussians=self.num_gaussians,
-                newOpacity=new_opacity,
-                vars={
-                    "g_gaussian_3d": self.gaussian_3d_buf,
-                },
-            )
-
-        gaussian_removal_by_opacity()
-        set_all_opacity(gaussian_opacity_remove_threshold - 0.1)
+    def set_all_opacity(self, new_opacity: float):
+        self.ker_set_all_opacity.dispatch(
+            thread_count=[self.num_gaussians, 1, 1],
+            numGaussians=self.num_gaussians,
+            newOpacity=new_opacity,
+            vars={
+                "g_gaussian_3d": self.gaussian_3d_buf,
+            },
+        )
 
     def optimizer_set_step(self, step: int):
         self.adamw_step = step

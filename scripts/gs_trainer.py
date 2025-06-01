@@ -42,8 +42,13 @@ class TrainingConfig:
     # Densification parameters.
     densify_steps: int = 100
     densify_scale: float = 1e-2
-    correction_steps: int = 3000
-    gaussian_removal_threshold: float = -4
+    # Step to prune opacity below a threshold.
+    opacity_prune_step: int = 100
+    # Step to skip pruning opacity after a reset.
+    opacity_prune_skip_step: int = 500
+    # Step to reset all opacity below a threshold.
+    reset_opacity_steps: int = 3000
+    gaussian_prune_threshold: float = -4
 
 
 class TrainerStateType(Enum):
@@ -128,7 +133,8 @@ def trainer_worker(
         indices = np.random.permutation(len(sfm_dataset))
         for step, idx in enumerate(indices):
             need_density = False
-            need_correction = False
+            need_opacity_prune = False
+            need_reset_opacity = False
             camera, image_path = sfm_dataset[idx]
             # Load image.
             image = Image.open(image_path)
@@ -187,16 +193,22 @@ def trainer_worker(
             if (optm_step + 1) % training_config.densify_steps == 0:
                 need_density = True
 
-            if (optm_step + 1) % training_config.correction_steps == 0:
-                need_correction = True
+            if (optm_step + 1) % training_config.reset_opacity_steps == 0:
+                need_reset_opacity = True
 
-            if need_density or need_correction:
+            if (optm_step + 1) % training_config.opacity_prune_step == 0 and (
+                optm_step + 1
+            ) % training_config.reset_opacity_steps > training_config.opacity_prune_skip_step:
+                need_opacity_prune = True
+
+            if need_density or need_opacity_prune or need_reset_opacity:
                 renderer.render(
                     image,
                     use_densify=need_density,
                     densify_scale=training_config.densify_scale,
-                    use_correction=need_correction,
-                    gaussian_opacity_remove_threshold=training_config.gaussian_removal_threshold,
+                    use_opacity_prune=need_opacity_prune,
+                    use_reset_opacity=need_reset_opacity,
+                    gaussian_opacity_prune_threshold=training_config.gaussian_prune_threshold,
                 )
 
             # Send the current state to the parent process.
