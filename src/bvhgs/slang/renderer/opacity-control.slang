@@ -1,13 +1,10 @@
 implementing "../renderer.slang";
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void markKeep(
-    uint tid: SV_DispatchThreadID,
-    uniform uint numSrc,
-    uniform float opacityThreshold,
-) {
+void markKeep(uint tid: SV_DispatchThreadID, uniform uint numSrc,
+              uniform float opacityThreshold) {
   if (tid >= numSrc) return;
-  float opa = utils.sigmoid(g_gaussian_3d_src[tid].opacity);
+  float opa = g_gaussian_3d_src[tid].opacity;
   if (opa < opacityThreshold) {
     g_keep_flag[tid] = 0;
   } else {
@@ -32,10 +29,8 @@ void removeGaussian(uint tid: SV_DispatchThreadID, uniform uint numSrc) {
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void setAllOpacity(uint tid: SV_DispatchThreadID,
-                   uniform uint numGaussians,
-                   uniform float newOpacity) 
-{
+void setAllOpacity(uint tid: SV_DispatchThreadID, uniform uint numGaussians,
+                   uniform float newOpacity) {
   if (tid >= numGaussians) return;
   g_gaussian_3d[tid].opacity = newOpacity;
 }

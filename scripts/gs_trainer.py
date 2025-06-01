@@ -41,9 +41,10 @@ class TrainingConfig:
     warmup_steps: int = 250
     # Densification parameters.
     densify_steps: int = 100
-    densify_scale: float = 1
+    densify_scale: float = 1e-2
     correction_steps: int = 3000
-    gaussian_removal_threshold: float = 0.01
+    gaussian_removal_threshold: float = -4
+
 
 class TrainerStateType(Enum):
     """Enumeration for the type of trainer state."""
@@ -88,13 +89,9 @@ def trainer_worker(
             scale_factor=-4,
             opacity_factor=-2,
             add_random_gaussians=True,
-            num_random_gaussians=50000,
-            random_gaussian_position_range=10,
+            num_random_gaussians=10000,
             random_gaussian_scale=-2,
         )
-        # gaussians.randomize(
-        #     size=100000,
-        #     )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
     else:
@@ -179,7 +176,7 @@ def trainer_worker(
             running_loss += loss
             if optm_step == 0:
                 renderer.recalcuate_avg_3dgs_size()
-                
+
             # Optimizer step.
             optm_step += 1
             if (optm_step + 1) % training_config.decay_steps == 0:
@@ -192,7 +189,7 @@ def trainer_worker(
 
             if (optm_step + 1) % training_config.correction_steps == 0:
                 need_correction = True
-  
+
             if need_density or need_correction:
                 renderer.render(
                     image,
@@ -201,7 +198,7 @@ def trainer_worker(
                     use_correction=need_correction,
                     gaussian_opacity_remove_threshold=training_config.gaussian_removal_threshold,
                 )
-            
+
             # Send the current state to the parent process.
             state = TrainerState(
                 type=TrainerStateType.STEP,

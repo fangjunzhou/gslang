@@ -22,11 +22,10 @@ void markDuplicate(uint tid: SV_DispatchThreadID, uniform float threashold) {
 void densify(uint tid: SV_DispatchThreadID, uniform uint numSrc,
              uniform float underConstructionGradScale,
              uniform float overConstructionShrinkScale,
-             uniform float overConstructionGradScale,
-              uniform float3 avgScale) {
+             uniform float overConstructionGradScale, uniform float3 avgScale) {
   if (tid >= numSrc) return;
   g_gaussian_3d[tid] = g_gaussian_3d_src[tid];
-  
+
   float avgScaleMag = length(avgScale);
   if (g_duplicate_flag[tid] == 1) {
     float scaleMag = length(g_gaussian_3d_src[tid].scale);
@@ -47,9 +46,10 @@ void densify(uint tid: SV_DispatchThreadID, uniform uint numSrc,
       g_gaussian_3d[dst] = g_gaussian_3d_src[tid];
       g_gaussian_3d[dst].scale = g_gaussian_3d_src[tid].scale - logShrinkScale;
 
-      g_gaussian_3d[tid].position += d_gaussian_3d[tid].position * overConstructionGradScale;
-      g_gaussian_3d[dst].position -= d_gaussian_3d[tid].position * overConstructionGradScale;
+      g_gaussian_3d[tid].position +=
+          d_gaussian_3d[tid].position * overConstructionGradScale;
+      g_gaussian_3d[dst].position -=
+          d_gaussian_3d[tid].position * overConstructionGradScale;
     }
-
   }
 }

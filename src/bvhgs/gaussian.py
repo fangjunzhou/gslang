@@ -150,7 +150,7 @@ class GaussianCloud:
         opacity_factor: float = 0,
         add_random_gaussians: bool = False,
         num_random_gaussians: int = 10000,
-        random_gaussian_scale: float = 0.1,
+        random_gaussian_scale: float = 0,
         random_gaussian_position_range: float = 1.0,
     ):
         """Load a Gaussian point cloud from a COLMAP sparse file.
@@ -197,8 +197,8 @@ class GaussianCloud:
             pos_min = np.min(self.positions, axis=0)
             pos_max = np.max(self.positions, axis=0)
             random_positions = np.random.uniform(
-                -random_gaussian_position_range,
-                random_gaussian_position_range,
+                pos_min - random_gaussian_position_range,
+                pos_max + random_gaussian_position_range,
                 (num_random_gaussians, 3),
             ).astype(np.float32)
             random_rotations = np.random.rand(num_random_gaussians, 4).astype(
