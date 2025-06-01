@@ -1,0 +1,77 @@
+implementing "../renderer.slang";
+
+static const float EPS_ADAMW = 1e-8f;
+static const int SH_COUNT = 15;
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void gradDescentGaussian3D(uint tid: SV_DispatchThreadID, uniform float pos_lr,
+                           uniform float rot_lr, uniform float scale_lr,
+                           uniform float color_lr, uniform float opacity_lr,
+                           uniform float sh_lr, uniform float beta1,
+                           uniform float beta2, uniform float weightDecay,
+                           uniform uint step) {
+  // Gaussian3D gd = d_gaussian_3d[tid];
+  // g_gaussian_3d[tid] = g_gaussian_3d[tid] - (lr * gd);
+  // // Normalize the rotation quaternion.
+  // g_gaussian_3d[tid].rotation = normalize(g_gaussian_3d[tid].rotation);
+
+  Gaussian3D grad = d_gaussian_3d[tid];
+  Gaussian3D m_old = m_gaussian_3d[tid];  // first moment
+  Gaussian3D v_old = v_gaussian_3d[tid];  // second moment
+  Gaussian3D param = g_gaussian_3d[tid];
+
+  m_gaussian_3d[tid] = m_old * beta1 + grad * (1.0 - beta1);
+
+  Gaussian3D grad_sq;
+  grad_sq.position = grad.position * grad.position;
+  grad_sq.rotation = grad.rotation * grad.rotation;
+  grad_sq.scale = grad.scale * grad.scale;
+  grad_sq.color = grad.color * grad.color;
+  grad_sq.opacity = grad.opacity * grad.opacity;
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    grad_sq.sh[i] = grad.sh[i] * grad.sh[i];
+  }
+  v_gaussian_3d[tid] = v_old * beta2 + grad_sq * (1.0 - beta2);
+
+  float bias_c1 = 1.0 - pow(beta1, float(step));
+  float bias_c2 = 1.0 - pow(beta2, float(step));
+  Gaussian3D m_hat = m_gaussian_3d[tid] / bias_c1;
+  Gaussian3D v_hat = v_gaussian_3d[tid] / bias_c2;
+
+  Gaussian3D update;
+  update.position = m_hat.position / (sqrt(v_hat.position) + EPS_ADAMW);
+  update.rotation = m_hat.rotation / (sqrt(v_hat.rotation) + EPS_ADAMW);
+  update.scale = m_hat.scale / (sqrt(v_hat.scale) + EPS_ADAMW);
+  update.color = m_hat.color / (sqrt(v_hat.color) + EPS_ADAMW);
+  update.opacity = m_hat.opacity / (sqrt(v_hat.opacity) + EPS_ADAMW);
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    update.sh[i] = m_hat.sh[i] / (sqrt(v_hat.sh[i]) + EPS_ADAMW);
+  }
+
+  // decoupled weight decay
+  param.position -= param.position * (pos_lr * weightDecay);
+  param.rotation -= param.rotation * (rot_lr * weightDecay);
+  param.scale -= param.scale * (scale_lr * weightDecay);
+  param.color -= param.color * (color_lr * weightDecay);
+  param.opacity -= param.opacity * (opacity_lr * weightDecay);
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    param.sh[i] -= param.sh[i] * (sh_lr * weightDecay);
+  }
+
+  param.position -= update.position * pos_lr;
+  param.rotation -= update.rotation * rot_lr;
+  param.rotation = normalize(param.rotation);
+  param.scale -= update.scale * scale_lr;
+  param.color -= update.color * color_lr;
+  param.opacity -= update.opacity * opacity_lr;
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    param.sh[i] -= update.sh[i] * sh_lr;
+  }
+
+  g_gaussian_3d[tid] = param;
+}

@@ -4,11 +4,13 @@ import radix_sort;
 import camera;
 import bounding_box;
 import gaussian;
+import math;
 
 // Camera parameters.
 Camera g_camera;
 // Gaussian point cloud in world space.
-StructuredBuffer<Gaussian3D> g_gaussian_3d;
+RWStructuredBuffer<Gaussian3D> g_gaussian_3d;
+
 // Gaussian point cloud in screen space.
 RWStructuredBuffer<Gaussian2D> g_gaussian_2d;
 // Culled 2D gaussian point cloud in screen space.
@@ -29,17 +31,35 @@ RWStructuredBuffer<Gaussian2D> g_gaussian_2d_sorted;
 // Render target.
 RWTexture2D<float4> g_render_target;
 RWTexture2D<float4> g_depth_target;
+RWTexture2D<uint> g_num_rendered_gaussians;
 
 // Render target gradient.
 RWTexture2D<float4> d_render_target;
 // Sorted screen space gaussian gradient.
-RWStructuredBuffer<Gaussian2DAtomic> d_a_gaussian_2d_sorted;
-RWStructuredBuffer<Gaussian2D> d_gaussian_2d_sorted;
+RWStructuredBuffer<Atomic<float>[11]> d_a_gaussian_2d_sorted;
 // Culled screen space gaussian gradient.
+RWStructuredBuffer<Atomic<float>[11]> d_a_gaussian_2d_culled;
 RWStructuredBuffer<Gaussian2D> d_gaussian_2d_culled;
 // World space gaussian gradient.
 RWStructuredBuffer<Gaussian3D> d_gaussian_3d;
+RWStructuredBuffer<Gaussian3D> m_gaussian_3d;
+RWStructuredBuffer<Gaussian3D> v_gaussian_3d;
+
+// Adaptive density control.
+RWStructuredBuffer<uint> g_duplicate_flag;
+RWStructuredBuffer<uint> g_duplicate_prefix;
+RWStructuredBuffer<Gaussian3D> g_gaussian_3d_src;
+
+// opacity control
+RWStructuredBuffer<uint> g_keep_flag;
+RWStructuredBuffer<uint> g_keep_prefix;
+RWStructuredBuffer<Gaussian3D> d_gaussian_3d_src;
+RWStructuredBuffer<Gaussian3D> m_gaussian_3d_src;
+RWStructuredBuffer<Gaussian3D> v_gaussian_3d_src;
 
 __include "./renderer/projection.slang";
 __include "./renderer/tile.slang";
 __include "./renderer/rasterizer.slang";
+__include "./renderer/optimizer.slang";
+__include "./renderer/adaptive-density-control.slang";
+__include "./renderer/opacity-control.slang";

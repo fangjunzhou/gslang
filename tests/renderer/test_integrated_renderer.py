@@ -126,8 +126,11 @@ def test_renderer_with_multiple_camera_positions(
 
     renderer = Renderer(gaussian_cloud, camera)
     
+    # Get number of rounds from benchmark fixture (or default to 8 if not available)
+    num_rounds = benchmark._min_rounds
+    
     # Pre-compute camera positions for different angles
-    angles = np.linspace(0, 2 * np.pi, 8, endpoint=False)
+    angles = np.linspace(0, 2 * np.pi, num_rounds, endpoint=False)
     distance = 10.0
     camera_positions = []
     camera_rotations = []
@@ -175,6 +178,6 @@ def test_renderer_with_multiple_camera_positions(
     benchmark.pedantic(
         renderer.render,  # Target function to benchmark
         setup=setup,      # Setup function to run before each round
-        rounds=8,         # Number of rounds (one for each camera position)
+        rounds=num_rounds,# Number of rounds (one for each camera position)
         iterations=1      # Number of iterations per round
     )

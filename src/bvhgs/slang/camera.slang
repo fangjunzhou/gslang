@@ -118,7 +118,7 @@ public struct Camera {
     float2x2 sCov = mul(this.S, mul(conv2d, transpose(this.S)));
 
     float3 viewDir = normalize(-u);
-    float3 sh = g.sphericalHarmonics(viewDir);
+    float3 sh = no_diff g.sphericalHarmonics(viewDir);
     float3 color = g.colorSig() + sh;
     float opacity = g.opacitySig();
 

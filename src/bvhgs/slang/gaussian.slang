@@ -14,6 +14,12 @@ static const float C4 = sqrt(105.0 / PI);
 static const float C5 = sqrt(21.0 / (2.0 * PI));
 static const float C6 = sqrt(7.0 / PI);
 static const int SH_COUNT = 15;
+static const float3 defaultSH[SH_COUNT] = {
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
+  float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0)
+};
 
 static const float BBOX_SIZE = 4;
 
@@ -27,24 +33,19 @@ public struct Gaussian3D : IDifferentiable {
 
   // Spherical harmonics.
   public float3 sh[SH_COUNT];
-  private static float3 defaultSH[SH_COUNT] = {
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0),
-    float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0)
-  };
 
   public __init(float3 position = float3(0, 0, 0),
                 float4 rotation = float4(0, 0, 0, 1),
-                float3 scale = float3(1, 1, 1), float3 color = float3(1, 0, 1),
-                float opacity = 1, float3 shCoeffs[SH_COUNT] = defaultSH, ) {
+                float3 scale = float3(0, 0, 0), float3 color = float3(0, 0, 0),
+                float opacity = 0, float3 shCoeffs[SH_COUNT] = defaultSH) {
     this.position = position;
     this.rotation = rotation;
     this.scale = scale;
-    this.sh = shCoeffs;
     this.color = color;
     this.opacity = opacity;
+    this.sh = shCoeffs;
   }
+
   [Differentiable]
   public float3 scaleExp() { return exp(this.scale); }
   [Differentiable]
@@ -55,7 +56,7 @@ public struct Gaussian3D : IDifferentiable {
   [Differentiable]
   public float3x3 covariance() {
     float3 scaleExp = this.scaleExp();
-    float3x3 R = quat::asRotMat(rotation);
+    float3x3 R = quat::asRotMat(this.rotation);
     float3x3 S = float3x3(float3(scaleExp.x, 0, 0), float3(0, scaleExp.y, 0),
                           float3(0, 0, scaleExp.z));
     float3x3 M = mul(R, S);
@@ -83,7 +84,6 @@ public struct Gaussian3D : IDifferentiable {
    * functions are precomputed using the input direction and constants (C0,
    * c1, ...).
    */
-  [Differentiable]
   public float3 sphericalHarmonics(float3 dir) {
     float y[SH_COUNT];
 
@@ -106,23 +106,69 @@ public struct Gaussian3D : IDifferentiable {
     y[14] = 0.25 * C3 * dir.x * (dir.x * dir.x - 3 * dir.y * dir.y);
 
     float3 result = float3(0, 0, 0);
-    for (int i = 0; i < SH_COUNT; ++i) {
+    [ForceUnroll]
+    for (int i = 0; i < SH_COUNT; i++) {
       result += y[i] * this.sh[i];
     }
     return result;
   }
 };
 
-Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
+public Gaussian3D operator +(Gaussian3D a, Gaussian3D b) {
+  // Add spherical harmonics coefficients.
+  float3 sh[SH_COUNT];
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    sh[i] = a.sh[i] + b.sh[i];
+  }
   return Gaussian3D(a.position + b.position, a.rotation + b.rotation,
                     a.scale + b.scale, a.color + b.color, a.opacity + b.opacity,
-                    a.sh);
+                    sh);
 }
 
-Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
+public Gaussian3D operator -(Gaussian3D a, Gaussian3D b) {
+  // Subtract spherical harmonics coefficients.
+  float3 sh[SH_COUNT];
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    sh[i] = a.sh[i] - b.sh[i];
+  }
   return Gaussian3D(a.position - b.position, a.rotation - b.rotation,
                     a.scale - b.scale, a.color - b.color, a.opacity - b.opacity,
-                    a.sh);
+                    sh);
+}
+
+public Gaussian3D operator*(Gaussian3D g, float s) {
+  // Scale the spherical harmonics coefficients.
+  float3 sh[SH_COUNT];
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    sh[i] = g.sh[i] * s;
+  }
+  return Gaussian3D(g.position * s, g.rotation, g.scale * s, g.color * s,
+                    g.opacity * s, sh);
+}
+
+public Gaussian3D operator*(float s, Gaussian3D g) {
+  // Scale the spherical harmonics coefficients.
+  float3 sh[SH_COUNT];
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    sh[i] = g.sh[i] * s;
+  }
+  return Gaussian3D(g.position * s, g.rotation, g.scale * s, g.color * s,
+                    g.opacity * s, sh);
+}
+
+public Gaussian3D operator /(Gaussian3D g, float s) {
+  // Scale the spherical harmonics coefficients.
+  float3 sh[SH_COUNT];
+  [ForceUnroll]
+  for (int i = 0; i < SH_COUNT; i++) {
+    sh[i] = g.sh[i] / s;
+  }
+  return Gaussian3D(g.position / s, g.rotation, g.scale / s, g.color / s,
+                    g.opacity / s, sh);
 }
 
 public struct Gaussian2D : IDifferentiable {
@@ -136,8 +182,6 @@ public struct Gaussian2D : IDifferentiable {
   // Gaussian opacity.
   public float opacity;
 
-  float2x2 cachedInvCov;
-
   [Differentiable]
   public __init(float3 position = float3(0, 0, 0),
                 float2x2 covariance = float2x2(1, 0, 0, 1),
@@ -147,16 +191,17 @@ public struct Gaussian2D : IDifferentiable {
 
     this.color = color;
     this.opacity = opacity;
+  }
 
-    // cache to avoid recomputing
+  [Differentiable]
+  float2x2 invCov() {
     float a = this.covariance[0][0];
     float b = this.covariance[0][1];
     float c = this.covariance[1][0];
     float d = this.covariance[1][1];
 
     float det = a * d - b * c;
-
-    this.cachedInvCov = float2x2(d / det, -b / det, -c / det, a / det);
+    return float2x2(d / det, -b / det, -c / det, a / det);
   }
 
   // Evaluate the Gaussian at a given point in normalized device coordinates.
@@ -164,7 +209,7 @@ public struct Gaussian2D : IDifferentiable {
   public float eval(float2 uv) {
     // exp(-0.5 * (uv - position)^T * inv(cov) * (uv - position))
     float2 diff = uv - this.position.xy;
-    float val = -0.5 * dot(diff, mul(this.cachedInvCov, diff));
+    float val = -0.5 * dot(diff, mul(this.invCov(), diff));
     return exp(val);
   }
 
@@ -226,54 +271,72 @@ public struct Gaussian2D : IDifferentiable {
     // Return the bounding box as a tuple.
     return BoundingBox2D(bMin, bMax);
   }
-};
 
-public struct Gaussian2DAtomic {
-  public Atomic<float>[3] position;
-
-  public Atomic<float> [2][2] covariance;
-  public Atomic<float>[3] color;
-  public Atomic<float> opacity;
-
-  __init(Gaussian2D g) {
-    this.position[0] = g.position.x;
-    this.position[1] = g.position.y;
-    this.position[2] = g.position.z;
-    this.covariance[0][0] = g.covariance[0][0];
-    this.covariance[0][1] = g.covariance[0][1];
-    this.covariance[1][0] = g.covariance[1][0];
-    this.covariance[1][1] = g.covariance[1][1];
-    this.color[0] = g.color.x;
-    this.color[1] = g.color.y;
-    this.color[2] = g.color.z;
-    this.opacity = g.opacity;
+  public Atomic<float>[11] toAtomic() {
+    Atomic<float>[11] atomicGaussian;
+    atomicGaussian[0] = this.position.x;
+    atomicGaussian[1] = this.position.y;
+    atomicGaussian[2] = this.position.z;
+    atomicGaussian[3] = this.covariance[0][0];
+    atomicGaussian[4] = this.covariance[0][1];
+    atomicGaussian[5] = this.covariance[1][0];
+    atomicGaussian[6] = this.covariance[1][1];
+    atomicGaussian[7] = this.color.x;
+    atomicGaussian[8] = this.color.y;
+    atomicGaussian[9] = this.color.z;
+    atomicGaussian[10] = this.opacity;
+    return atomicGaussian;
   }
 
-  [mutating]
-  public void add(Gaussian2D g) {
-    this.position[0].add(g.position.x);
-    this.position[1].add(g.position.y);
-    this.position[2].add(g.position.z);
-    this.covariance[0][0].add(g.covariance[0][0]);
-    this.covariance[0][1].add(g.covariance[0][1]);
-    this.covariance[1][0].add(g.covariance[1][0]);
-    this.covariance[1][1].add(g.covariance[1][1]);
-    this.color[0].add(g.color.x);
-    this.color[1].add(g.color.y);
-    this.color[2].add(g.color.z);
-    this.opacity.add(g.opacity);
+  public float[11] toArray() {
+    float[11] arr;
+    arr[0] = this.position.x;
+    arr[1] = this.position.y;
+    arr[2] = this.position.z;
+    arr[3] = this.covariance[0][0];
+    arr[4] = this.covariance[0][1];
+    arr[5] = this.covariance[1][0];
+    arr[6] = this.covariance[1][1];
+    arr[7] = this.color.x;
+    arr[8] = this.color.y;
+    arr[9] = this.color.z;
+    arr[10] = this.opacity;
+    return arr;
   }
 
-  [mutating]
-  public Gaussian2D toGaussian2D() {
-    float3 position = float3(this.position[0].load(), this.position[1].load(),
-                             this.position[2].load());
+  public static Gaussian2D fromAtomic(inout Atomic<float>[11] atomicGaussian) {
+    float3 position = float3(atomicGaussian[0].load(), atomicGaussian[1].load(),
+                             atomicGaussian[2].load());
     float2x2 covariance =
-        float2x2(this.covariance[0][0].load(), this.covariance[0][1].load(),
-                 this.covariance[1][0].load(), this.covariance[1][1].load());
-    float3 color = float3(this.color[0].load(), this.color[1].load(),
-                          this.color[2].load());
-    float opacity = this.opacity.load();
-    return Gaussian2D(position, covariance, color, opacity);
+        float2x2(atomicGaussian[3].load(), atomicGaussian[4].load(),
+                 atomicGaussian[5].load(), atomicGaussian[6].load());
+    float3 color = float3(atomicGaussian[7].load(), atomicGaussian[8].load(),
+                          atomicGaussian[9].load());
+    float opacity = atomicGaussian[10].load();
+
+    Gaussian2D g = Gaussian2D(position, covariance, color, opacity);
+    return g;
   }
 };
+
+// Overload the addition and subtraction operators for Gaussian2D.
+public Gaussian2D operator +(Gaussian2D a, Gaussian2D b) {
+  return Gaussian2D(a.position + b.position, a.covariance + b.covariance,
+                    a.color + b.color, a.opacity + b.opacity);
+}
+public Gaussian2D operator -(Gaussian2D a, Gaussian2D b) {
+  return Gaussian2D(a.position - b.position, a.covariance - b.covariance,
+                    a.color - b.color, a.opacity - b.opacity);
+}
+public Gaussian2D operator*(Gaussian2D g, float s) {
+  return Gaussian2D(g.position * s, g.covariance * (s * s), g.color * s,
+                    g.opacity * s);
+}
+public Gaussian2D operator*(float s, Gaussian2D g) {
+  return Gaussian2D(g.position * s, g.covariance * (s * s), g.color * s,
+                    g.opacity * s);
+}
+public Gaussian2D operator /(Gaussian2D g, float s) {
+  return Gaussian2D(g.position / s, g.covariance / (s * s), g.color / s,
+                    g.opacity / s);
+}

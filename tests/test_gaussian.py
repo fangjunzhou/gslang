@@ -36,9 +36,9 @@ def test_gaussian3d_init_default(buffer_shape: Tuple[int]):
         gaussian = cursor[i].read()
         assert gaussian["position"] == spy.float3(0, 0, 0)
         assert gaussian["rotation"] == spy.float4(0, 0, 0, 1)
-        assert gaussian["scale"] == spy.float3(1, 1, 1)
-        assert gaussian["color"] == spy.float3(1, 0, 1)
-        assert gaussian["opacity"] == 1
+        assert gaussian["scale"] == spy.float3(0, 0, 0)
+        assert gaussian["color"] == spy.float3(0, 0, 0)
+        assert gaussian["opacity"] == 0
 
 
 def test_gaussian3d_init_custom(buffer_shape: Tuple[int]):

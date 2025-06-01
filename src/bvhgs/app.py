@@ -1,10 +1,7 @@
 from typing import Tuple
 import slangpy as spy
-from pathlib import Path
 import numpy as np
 from pyglm import glm
-import quaternion
-import argparse
 
 from bvhgs import device
 from bvhgs.gaussian import GaussianCloud
@@ -15,8 +12,7 @@ from bvhgs.renderer import Renderer
 class App:
     def __init__(
         self,
-        path: Path,
-        is_colmap: bool = False,
+        gaussians: GaussianCloud,
         resolution: Tuple[int, int] = (800, 600),
         focal_length: float = 580,
     ):
@@ -35,13 +31,6 @@ class App:
 
         # UI context
         self.ui = spy.ui.Context(self.device)
-
-        # Load scene
-        gaussians = GaussianCloud()
-        if not is_colmap:
-            gaussians.load_from_ply(path)
-        else:
-            gaussians.load_from_colmap(path)
 
         # Initialize camera and cursor at scene center
         self.cursor = glm.vec3(0, 0, 0)
@@ -303,10 +292,6 @@ class App:
         timer = spy.Timer()
         fps_avg = 0.0
 
-        # Store previous scene rotation to detect changes
-        # Initialize with current scene rotation
-        prev_scene_rotation = self.scene_rotation
-
         while not self.window.should_close():
             # Calculate frame time and FPS
             elapsed = timer.elapsed_s()
@@ -340,36 +325,4 @@ class App:
             del surface_tex
 
             self.surface.present()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BVHGS Viewer")
-    parser.add_argument(
-        "path",
-        type=Path,
-        help="Path to the PLY or COLMAP file containing Gaussian points",
-    )
-    parser.add_argument("--colmap", action="store_true", help="Is COLMAP file")
-    parser.add_argument(
-        "--resolution",
-        type=int,
-        nargs=2,
-        default=(800, 600),
-        help="Resolution of the window (width height)",
-    )
-    parser.add_argument(
-        "--focal-length",
-        type=float,
-        default=580.0,
-        help="Focal length for the camera",
-    )
-    args = parser.parse_args()
-    if not args.path.exists():
-        raise FileNotFoundError(f"Path not found: {args.path}")
-    # Initialize and run the application
-    App(
-        path=args.path,
-        is_colmap=args.colmap,
-        resolution=tuple(args.resolution),
-        focal_length=args.focal_length,
-    ).run()
+            yield

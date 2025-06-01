@@ -62,7 +62,12 @@ class GaussianCloud:
         }
 
     def randomize(
-        self, size: int, position_var: float = 1.0, scale_offst: float = 0
+        self,
+        size: int,
+        position_var: float = 1.0,
+        scale_var: float = 1,
+        scale_offst: float = 0,
+        opacity_factor: float = 0,
     ):
         """Randomize the Gaussian point cloud.
 
@@ -75,13 +80,14 @@ class GaussianCloud:
         self.rotations = np.random.rand(size, 4).astype(np.float32)
         # Normalize the rotations
         self.rotations /= np.linalg.norm(self.rotations, axis=1, keepdims=True)
-        self.scales = np.random.randn(size, 3).astype(np.float32) + scale_offst
-
-        self.colors = np.random.randn(size, 3).astype(np.float32)
-        self.opacities = np.random.randn(size, 1).astype(np.float32)
-        self.spherical_harmonics = np.random.randn(size, 15, 3).astype(
-            np.float32
+        self.scales = (
+            np.random.randn(size, 3).astype(np.float32) * scale_var
+            + scale_offst
         )
+
+        self.colors = np.random.rand(size, 3).astype(np.float32)
+        self.opacities = np.ones((size, 1)).astype(np.float32) * opacity_factor
+        self.spherical_harmonics = np.zeros((size, 15, 3)).astype(np.float32)
 
         self.num_gaussians = size
 
@@ -137,7 +143,16 @@ class GaussianCloud:
 
         self.num_gaussians = N
 
-    def load_from_colmap(self, path: pathlib.Path):
+    def load_from_colmap(
+        self,
+        path: pathlib.Path,
+        scale_factor: float = -3.0,
+        opacity_factor: float = 0,
+        add_random_gaussians: bool = False,
+        num_random_gaussians: int = 10000,
+        random_gaussian_scale: float = 0,
+        random_gaussian_position_range: float = 1.0,
+    ):
         """Load a Gaussian point cloud from a COLMAP sparse file.
 
         :param path: dir to the COLMAP sparse file.
@@ -167,11 +182,91 @@ class GaussianCloud:
         self.positions = np.ascontiguousarray(points, dtype=np.float32)
         rotation = [0, 0, 0, 1]  # Identity quaternion
         self.rotations = np.tile(rotation, (len(points), 1)).astype(np.float32)
-        self.scales = np.ones((len(points), 3), dtype=np.float32) * -3
+        self.scales = np.ones((len(points), 3), dtype=np.float32) * scale_factor
         self.colors = np.ascontiguousarray(colors, dtype=np.float32)
         # opacity=0.5
-        self.opacities = np.full((len(points), 1), 0, dtype=np.float32)
+        self.opacities = np.full(
+            (len(points), 1), opacity_factor, dtype=np.float32
+        )
         self.spherical_harmonics = np.zeros(
             (len(points), 15, 3), dtype=np.float32
         )
         self.num_gaussians = len(points)
+
+        if add_random_gaussians:
+            pos_min = np.min(self.positions, axis=0)
+            pos_max = np.max(self.positions, axis=0)
+            random_positions = np.random.uniform(
+                pos_min - random_gaussian_position_range,
+                pos_max + random_gaussian_position_range,
+                (num_random_gaussians, 3),
+            ).astype(np.float32)
+            random_rotations = np.random.rand(num_random_gaussians, 4).astype(
+                np.float32
+            )
+            random_rotations /= np.linalg.norm(
+                random_rotations, axis=1, keepdims=True
+            )
+            random_scales = (
+                np.ones((num_random_gaussians, 3)).astype(np.float32)
+                * random_gaussian_scale
+            )
+            random_colors = np.random.rand(num_random_gaussians, 3).astype(
+                np.float32
+            )
+            random_colors = np.log(
+                random_colors / (1 - random_colors + 1e-5) + 1e-5
+            )
+            random_opacities = np.full(
+                (num_random_gaussians, 1), opacity_factor, dtype=np.float32
+            )
+            random_sh = np.zeros(
+                (num_random_gaussians, 15, 3), dtype=np.float32
+            )
+            self.positions = np.concatenate(
+                (self.positions, random_positions), axis=0
+            )
+            self.rotations = np.concatenate(
+                (self.rotations, random_rotations), axis=0
+            )
+            self.scales = np.concatenate((self.scales, random_scales), axis=0)
+            self.colors = np.concatenate((self.colors, random_colors), axis=0)
+            self.opacities = np.concatenate(
+                (self.opacities, random_opacities), axis=0
+            )
+            self.spherical_harmonics = np.concatenate(
+                (self.spherical_harmonics, random_sh), axis=0
+            )
+            self.num_gaussians += num_random_gaussians
+
+    def save_to_ply(self, path: pathlib.Path):
+        """Save the Gaussian point cloud to a PLY file.
+
+        :param path: path to the PLY file.
+        """
+        if not path.parent.exists():
+            raise FileNotFoundError(f"Directory {path.parent} does not exist.")
+
+        # Create a DataFrame from the Gaussian data.
+        data = {
+            "x": self.positions[:, 0],
+            "y": self.positions[:, 1],
+            "z": self.positions[:, 2],
+            "rot_0": self.rotations[:, 3],
+            "rot_1": self.rotations[:, 0],
+            "rot_2": self.rotations[:, 1],
+            "rot_3": self.rotations[:, 2],
+            "scale_0": self.scales[:, 0],
+            "scale_1": self.scales[:, 1],
+            "scale_2": self.scales[:, 2],
+            "f_dc_0": self.colors[:, 0],
+            "f_dc_1": self.colors[:, 1],
+            "f_dc_2": self.colors[:, 2],
+            "opacity": self.opacities[:, 0],
+        }
+        for i in range(45):
+            data[f"f_rest_{i}"] = self.spherical_harmonics[:, i // 3, i % 3]
+
+        df = pd.DataFrame(data)
+        cloud = PyntCloud(df)
+        cloud.to_file(str(path.resolve()), also_save=["mesh"])

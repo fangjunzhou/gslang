@@ -18,10 +18,10 @@ class Camera:
 
     def __init__(
         self,
-        rotation: glm.quat,
-        position: glm.vec3,
-        sensor_size: glm.uvec2,
-        focal_length: float,
+        rotation: glm.quat = glm.quat(1.0, 0.0, 0.0, 0.0),
+        position: glm.vec3 = glm.vec3(0.0, 0.0, 0.0),
+        sensor_size: glm.uvec2 = glm.uvec2(640, 480),
+        focal_length: float = 580.0,
         near_plane: float = 0.1,
         far_plane: float = 1000.0,
     ) -> None:
