@@ -39,6 +39,7 @@ class Renderer:
     ker_duplicate_gs: spy.ComputeKernel
     ker_rasterize: spy.ComputeKernel
     image_arr: jnp.ndarray = jnp.array([])
+    avg_gaussian_3d_size: jnp.ndarray = jnp.array([])
 
     def __init__(self, gaussians: GaussianCloud, camera: Camera) -> None:
         """Constructor for the Rasterizer class.
@@ -302,7 +303,7 @@ class Renderer:
     def image_loss(self, src: jnp.ndarray, dst: jnp.ndarray):
         return jnp.mean((dst - src) ** 2)
 
-    def render(self, gt_image: Image.Image | None = None, use_densify: bool = False, densify_scale: float = 1.0) -> float:
+    def render(self, gt_image: Image.Image | None = None, use_densify: bool = False, densify_scale: float = 1.0, overConstructionShrinkScale: float = 1.6) -> float:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
         camera_params = self.camera.to_slang()
@@ -591,6 +592,10 @@ class Renderer:
     
         def densify():
             """Densify the Gaussian points."""
+            if self.avg_gaussian_3d_size.size == 0:
+                self.__recalcuate_avg_3dgs_size()
+                
+                
             duplicate_flag_buf = device.create_buffer(
                 element_count=self.num_gaussians,
                 struct_type=self.program.reflection.g_duplicate_flag,
@@ -602,6 +607,7 @@ class Renderer:
             self.ker_mark_duplicated.dispatch(
                 thread_count=[self.num_gaussians, 1, 1],
                 threashold=0.0002,
+                avgScale=self.avg_gaussian_3d_size,
                 vars={
                     "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
                     "g_inside_flag": inside_flag_buf,
@@ -638,6 +644,8 @@ class Renderer:
                 thread_count=[self.num_gaussians, 1, 1],
                 numSrc=self.num_gaussians,
                 underConstructionGradScale=densify_scale,
+                overConstructionShrinkScale=overConstructionShrinkScale,
+                overConstructionGradScale=densify_scale,
                 vars={
                     "g_gaussian_3d": self.gaussian_3d_buf,
                     "g_gaussian_3d_src": old_gaussian_3d_buf,
@@ -676,8 +684,23 @@ class Renderer:
     def optimizer_set_step(self, step: int):
         self.adamw_step = step
 
-    def optimizer_step(self) -> None:
+    def optimizer_step(self, correction_steps: int = 7000) -> None:
         self.adamw_step += 1
+        # correction: recalculate avg 3dgs size, make transparent etc
+        if self.adamw_step % correction_steps == 0:
+            self.__recalcuate_avg_3dgs_size()
+            
+    def __recalcuate_avg_3dgs_size(self):
+        """Recalculate the average size of the Gaussian points."""
+        gaussian_arr = (
+            self.gaussian_3d_buf.to_numpy()
+            .view(np.float32)
+            .reshape(self.num_gaussians, -1)
+        )
+        avg_size = np.mean(gaussian_arr[:, 8:11], axis=0) if device.info.type == spy.DeviceType.metal else np.mean(gaussian_arr[:, 7:10], axis=0) 
+        logger.info(f"Average Gaussian size: {avg_size}")
+
+        self.avg_gaussian_3d_size = jnp.array(avg_size, dtype=jnp.float32)
 
     def backward(
         self,

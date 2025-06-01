@@ -20,18 +20,36 @@ void markDuplicate(uint tid: SV_DispatchThreadID, uniform float threashold) {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void densify(uint tid: SV_DispatchThreadID, uniform uint numSrc,
-             uniform float underConstructionGradScale) {
+             uniform float underConstructionGradScale,
+             uniform float overConstructionShrinkScale,
+             uniform float overConstructionGradScale,
+              uniform float3 avgScale) {
   if (tid >= numSrc) return;
   g_gaussian_3d[tid] = g_gaussian_3d_src[tid];
+  
+  float avgScaleMag = length(avgScale);
   if (g_duplicate_flag[tid] == 1) {
+    float scaleMag = length(g_gaussian_3d_src[tid].scale);
     uint dst = numSrc + g_duplicate_prefix[tid] - 1;
-    // Copy the Gaussian to the destination index.
-    g_gaussian_3d[dst] = g_gaussian_3d_src[tid];
-    // Move the Gaussian down the gradient.
-    g_gaussian_3d[tid].position +=
-        d_gaussian_3d[tid].position * underConstructionGradScale;
-    g_gaussian_3d[dst].position -=
-        d_gaussian_3d[tid].position * underConstructionGradScale;
-    // TODO: Handle over construction (add a threshold to the gradient).
+
+    if (scaleMag < avgScaleMag) {
+      // Copy the Gaussian to the destination index.
+      g_gaussian_3d[dst] = g_gaussian_3d_src[tid];
+      // Move the Gaussian down the gradient.
+      g_gaussian_3d[tid].position +=
+          d_gaussian_3d[tid].position * underConstructionGradScale;
+      g_gaussian_3d[dst].position -=
+          d_gaussian_3d[tid].position * underConstructionGradScale;
+    } else {
+      float logShrinkScale = log(overConstructionShrinkScale);
+      g_gaussian_3d[tid].scale = g_gaussian_3d_src[tid].scale - logShrinkScale;
+
+      g_gaussian_3d[dst] = g_gaussian_3d_src[tid];
+      g_gaussian_3d[dst].scale = g_gaussian_3d_src[tid].scale - logShrinkScale;
+
+      g_gaussian_3d[tid].position += d_gaussian_3d[tid].position * overConstructionGradScale;
+      g_gaussian_3d[dst].position -= d_gaussian_3d[tid].position * overConstructionGradScale;
+    }
+
   }
 }

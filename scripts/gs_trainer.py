@@ -82,15 +82,18 @@ def trainer_worker(
 
     # Load SFM Dataset
     if is_colmap:
-        gaussians.load_from_colmap(
-            path,
-            scale_factor=-4,
-            opacity_factor=-2,
-            add_random_gaussians=True,
-            num_random_gaussians=50000,
-            random_gaussian_position_range=10,
-            random_gaussian_scale=-2,
-        )
+        # gaussians.load_from_colmap(
+        #     path,
+        #     scale_factor=-4,
+        #     opacity_factor=-2,
+        #     add_random_gaussians=True,
+        #     num_random_gaussians=50000,
+        #     random_gaussian_position_range=10,
+        #     random_gaussian_scale=-2,
+        # )
+        gaussians.randomize(
+            size=100000,
+            )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
     else:
