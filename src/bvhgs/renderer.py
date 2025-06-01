@@ -637,7 +637,7 @@ class Renderer:
             self.ker_densify.dispatch(
                 thread_count=[self.num_gaussians, 1, 1],
                 numSrc=self.num_gaussians,
-                underConstructionScale= densify_scale,
+                underConstructionGradScale=densify_scale,
                 vars={
                     "g_gaussian_3d": self.gaussian_3d_buf,
                     "g_gaussian_3d_src": old_gaussian_3d_buf,

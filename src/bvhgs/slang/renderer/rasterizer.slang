@@ -3,19 +3,16 @@ implementing "../renderer.slang";
 static const float EPS = 1e-2f;
 
 [Differentiable]
-float calculateAlpha(Gaussian2D g, no_diff float2 uv) {
+void rasterizerAcc(Gaussian2D g, float attenuation, no_diff float2 uv,
+                   out float3 radiance, out float nextAttenuation) {
   // Evaluate the Gaussian at the given UV coordinate.
   float sig = g.eval(uv);
-  // Calculate the radiance contribution.
+  // Calculate the alpha value.
   float alpha = 1 - exp(-sig * g.opacity);
-  return alpha;
-}
-
-[Differentiable]
-float3 calculateRadiance(Gaussian2D g, float alpha) {
   // Calculate the radiance contribution.
-  float3 radiance = g.color * alpha;
-  return radiance;
+  radiance = g.color * alpha * attenuation;
+  // Accumulate the attenuation.
+  nextAttenuation = attenuation * (1 - alpha);
 }
 
 // Duplicate the screen space Gaussian for each tile.
@@ -54,11 +51,8 @@ void rasterize(uint2 tid: SV_DispatchThreadID) {
     Gaussian2D g = g_gaussian_2d_sorted[i];
     float3 gaussianRadiance;
     // Evaluate the Gaussian and calculate radiance contribution.
-    float alpha = calculateAlpha(g, uv);
-    gaussianRadiance = calculateRadiance(g, alpha);
-    radiance += attenuation * gaussianRadiance;
-    // Accumulate the attenuation.
-    attenuation *= (1 - alpha);
+    rasterizerAcc(g, attenuation, uv, gaussianRadiance, attenuation);
+    radiance += gaussianRadiance;
     // If the attenuation is zero, we can stop.
     if (attenuation <= EPS) {
       depth = g.position.z;
@@ -101,11 +95,12 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
   uint tileOffs = g_tile_offs[tileId];
   // Rasterize all the 2D gaussians in the tile.
   // Accumulate radiance.
-  float3 radiance = float3(0, 0, 0);
+  float3 bwdRadiance = float3(0, 0, 0);
+  float3 totalRadiance = g_render_target[tid].xyz;
   float3 dRadiance = d_render_target[tid].xyz;
   // Attenuation factor.
-  float attenuation = 1;
-  float depth = 1;
+  float bwdAttenuation = 1;
+  float dAttenuation = 0;
   // Loop over the gaussians in the tile.
   uint n = g_num_rendered_gaussians[tid];
   if (n > tileLength) n = tileLength;  // Safety check to avoid invalid n values
@@ -119,24 +114,26 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
 
     // Get the gaussian.
     Gaussian2D g = g_gaussian_2d_sorted[i];
+
+    // Backward rendering.
+    float sig = g.eval(uv);
+    // Calculate the alpha value.
+    float alpha = 1 - exp(-sig * g.opacity);
+    // Calculate the radiance contribution.
+    float3 gaussianRadiance = g.color * alpha;
+
+    // Accumulate the radiance and attenuation.
+    bwdRadiance = bwdRadiance * (1 - alpha);
+    bwdRadiance += gaussianRadiance;
+    bwdAttenuation = bwdAttenuation * (1 - alpha);
+
+    // Calculate the gradient w.r.t. the gaussian and attenuation.
+    float attenuation = 1 - bwdAttenuation;
     DifferentialPair<Gaussian2D> g_pair = diffPair(g);
-
-    // Evaluate the Gaussian and calculate radiance contribution.
-    float alpha = calculateAlpha(g, uv);
-    float3 gaussianRadiance = calculateRadiance(g, alpha);
-
-    float3 dGaussianRadiance = attenuation * dRadiance;
-    DifferentialPair<float> alphaPair = diffPair(alpha);
-    bwd_diff(calculateRadiance)(g_pair, alphaPair, dGaussianRadiance);
-
-    alphaPair = diffPair(alphaPair.p,
-                         alphaPair.d - dot(dRadiance, radiance) * attenuation);
-
-    Gaussian2D.Differential g_pair_d = g_pair.d;
-
-    bwd_diff(calculateAlpha)(g_pair, uv, alphaPair.d);
-
-    g_pair = diffPair(g_pair.p, g_pair.d + g_pair_d);
+    DifferentialPair<float> a_pair = diffPair(attenuation);
+    bwd_diff(rasterizerAcc)(g_pair, a_pair, uv, dRadiance, dAttenuation);
+    // Update the gradients.
+    dAttenuation = a_pair.d;
 
     float[11] d = g_pair.d.toArray();
     for (uint j = 0; j < 11; j++) {
@@ -151,11 +148,6 @@ void bwdRasterize(uint2 tid: SV_DispatchThreadID, uint2 gid: SV_GroupID) {
         }
       }
     }
-
-    radiance = radiance * (1 - alpha);
-    radiance += gaussianRadiance;
-
-    attenuation = attenuation * (1 - alpha);
   }
 }
 

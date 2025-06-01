@@ -23,7 +23,7 @@ class TrainingConfig:
 
     num_epochs: int = 64
     # Learning rate and decay parameters.
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-4
     position_lr_factor: float = 1.0
     pos_lr_decay_rate: float = 0.99
     rotation_lr_factor: float = 1.0
@@ -40,8 +40,8 @@ class TrainingConfig:
     warmup_levels: int = 4
     warmup_steps: int = 250
     # Densification parameters.
-    densify_steps: int = 50
-    densify_scale: float = 1e-2
+    densify_steps: int = 100
+    densify_scale: float = 1
 
 
 class TrainerStateType(Enum):
@@ -79,18 +79,10 @@ def trainer_worker(
     # )
     # Load scene
     gaussians = GaussianCloud()
-    # gaussians.load_from_colmap(colmap_path, scale_factor=-4, opacity_factor=-3)
-    gaussians.randomize(
-        size=100000,
-        position_var=5.0,
-        scale_var=0.25,
-        scale_offst=-4,
-        opacity_factor=-4,
-    )
 
     # Load SFM Dataset
     if is_colmap:
-        gaussians.load_from_colmap(path, scale_factor=-4, opacity_factor=-2)
+        gaussians.load_from_colmap(path, scale_factor=-4, opacity_factor=-2, add_random_gaussians=True, random_gaussians_size=10000)
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
     else:

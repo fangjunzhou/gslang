@@ -20,7 +20,7 @@ void markDuplicate(uint tid: SV_DispatchThreadID, uniform float threashold) {
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void densify(uint tid: SV_DispatchThreadID, uniform uint numSrc,
-             uniform float underConstructionScale) {
+             uniform float underConstructionGradScale) {
   if (tid >= numSrc) return;
   g_gaussian_3d[tid] = g_gaussian_3d_src[tid];
   if (g_duplicate_flag[tid] == 1) {
@@ -29,7 +29,9 @@ void densify(uint tid: SV_DispatchThreadID, uniform uint numSrc,
     g_gaussian_3d[dst] = g_gaussian_3d_src[tid];
     // Move the Gaussian down the gradient.
     g_gaussian_3d[tid].position +=
-        d_gaussian_3d[tid].position * underConstructionScale;
-    // TODO: Handle over construction.
+        d_gaussian_3d[tid].position * underConstructionGradScale;
+    g_gaussian_3d[dst].position -=
+        d_gaussian_3d[tid].position * underConstructionGradScale;
+    // TODO: Handle over construction (add a threshold to the gradient).
   }
 }
