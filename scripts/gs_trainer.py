@@ -23,13 +23,13 @@ class TrainingConfig:
 
     num_epochs: int = 64
     # Learning rate and decay parameters.
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-3
     position_lr_factor: float = 1.0
     pos_lr_decay_rate: float = 0.99
     rotation_lr_factor: float = 1.0
     scale_lr_factor: float = 1.0
-    color_lr_factor: float = 2.0
-    opacity_lr_factor: float = 2.0
+    color_lr_factor: float = 1.0
+    opacity_lr_factor: float = 1.0
     sh_lr_factor: float = 1.0
     decay_steps: int = 16
     # Adam optimizer parameters.
@@ -76,21 +76,31 @@ def trainer_worker(
     """Main function to run the BVHGS trainer."""
     # logging.basicConfig(
     #     level=logging.INFO
-    # )
+    #
     # Load scene
     gaussians = GaussianCloud()
 
     # Load SFM Dataset
     if is_colmap:
-        gaussians.load_from_colmap(path, scale_factor=-4, opacity_factor=-2, add_random_gaussians=True, random_gaussians_size=10000)
+        gaussians.load_from_colmap(
+            path,
+            scale_factor=-4,
+            opacity_factor=-2,
+            add_random_gaussians=True,
+            num_random_gaussians=50000,
+            random_gaussian_position_range=10,
+            random_gaussian_scale=-2,
+        )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
     else:
         gaussians.load_from_ply(path)
         sfm_dataset = SFMDataset()
-        assert camera_path is not None, "Camera path must be provided if not using COLMAP."
-        sfm_dataset.load_from_camera_json(camera_path , images_path)
-        
+        assert (
+            camera_path is not None
+        ), "Camera path must be provided if not using COLMAP."
+        sfm_dataset.load_from_camera_json(camera_path, images_path)
+
     # Init camera.
     camera = Camera()
     # Initialize renderer.
@@ -120,11 +130,19 @@ def trainer_worker(
             # Load image.
             image = Image.open(image_path)
             # Warmup training.
-            if optm_step < training_config.warmup_steps * training_config.warmup_levels:
+            if (
+                optm_step
+                < training_config.warmup_steps * training_config.warmup_levels
+            ):
                 curr_level = optm_step // training_config.warmup_steps
-                down_sample_factor = 2 ** (training_config.warmup_levels - curr_level)
+                down_sample_factor = 2 ** (
+                    training_config.warmup_levels - curr_level
+                )
                 image = image.resize(
-                    (image.width // down_sample_factor, image.height // down_sample_factor)
+                    (
+                        image.width // down_sample_factor,
+                        image.height // down_sample_factor,
+                    )
                 )
                 camera = Camera(
                     position=camera.position,
@@ -140,7 +158,9 @@ def trainer_worker(
             loss = renderer.render(image)
             # Backward pass and optimization.
             renderer.backward(
-                pos_lr=curr_lr * training_config.position_lr_factor * curr_pos_decay,
+                pos_lr=curr_lr
+                * training_config.position_lr_factor
+                * curr_pos_decay,
                 rot_lr=curr_lr * training_config.rotation_lr_factor,
                 scale_lr=curr_lr * training_config.scale_lr_factor,
                 color_lr=curr_lr * training_config.color_lr_factor,
@@ -160,7 +180,11 @@ def trainer_worker(
 
             # Densification step.
             if (optm_step + 1) % training_config.densify_steps == 0:
-                renderer.render(image, use_densify=True, densify_scale=training_config.densify_scale)
+                renderer.render(
+                    image,
+                    use_densify=True,
+                    densify_scale=training_config.densify_scale,
+                )
 
             # Send the current state to the parent process.
             state = TrainerState(
@@ -183,7 +207,7 @@ def trainer_worker(
             loss=avg_loss,
             lr=curr_lr,
             num_gaussians=renderer.num_gaussians,
-            gaussian_arr=renderer.gaussian_3d_buf.to_numpy()
+            gaussian_arr=renderer.gaussian_3d_buf.to_numpy(),
         )
         conn.send(state)
 
@@ -207,7 +231,7 @@ if __name__ == "__main__":
         nargs="?",
         help="Path to the camera file (required if not using --colmap)",
     )
-        
+
     parser.add_argument(
         "images",
         type=Path,
@@ -219,29 +243,25 @@ if __name__ == "__main__":
         help="Path to the directory to save training outputs",
     )
     args = parser.parse_args()
-    
 
     camera_path = None
     if not args.is_colmap:
         if args.camera_path is None:
             parser.error("You must provide a camera path if not using COLMAP.")
         if not args.camera_path.exists():
-            raise FileNotFoundError(f"Camera path not found: {args.camera_path}")
+            raise FileNotFoundError(
+                f"Camera path not found: {args.camera_path}"
+            )
         camera_path = args.camera_path
-    
-            
-    is_colmap : bool = args.is_colmap
-        
+
+    is_colmap: bool = args.is_colmap
+
     if not args.path.exists():
         raise FileNotFoundError(f"Path not found: {args.path}")
 
     if not args.images.exists():
         raise FileNotFoundError(f"Images path not found: {args.images}")
 
-
-            
-            
-            
     rendering_gaussians = GaussianCloud()
     rendering_gaussians.randomize(1)
     app = App(rendering_gaussians)
@@ -255,7 +275,14 @@ if __name__ == "__main__":
     # Start the trainer worker in a separate process
     trainer_process = mp.Process(
         target=trainer_worker,
-        args=(args.path, is_colmap, args.images, camera_path, training_config, child_conn),
+        args=(
+            args.path,
+            is_colmap,
+            args.images,
+            camera_path,
+            training_config,
+            child_conn,
+        ),
     )
 
     # Start the trainer process
