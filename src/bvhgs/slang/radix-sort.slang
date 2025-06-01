@@ -18,7 +18,8 @@ struct RadixState {
   uint entriesPerThread;
   RWStructuredBuffer<KVPair> src;
   RWStructuredBuffer<KVPair> dst;
-  RWStructuredBuffer<uint> histOffs;  // Global offset
+  RWStructuredBuffer<uint> hist;  // Global offset
+  RWStructuredBuffer<uint> offs;
   RWStructuredBuffer<uint> globalOffs;  // Size of the histogram
 };
 
@@ -31,7 +32,7 @@ void clearHist(uint tid: SV_DispatchThreadID, uniform RadixState state) {
     uint startIdx = tid * state.bucket;
     uint endIdx = startIdx + state.bucket;
     for (uint i = startIdx; i < endIdx; i++) {
-      state.histOffs[i] = 0;
+      state.hist[i] = 0;
     }
   } 
 }
@@ -59,26 +60,23 @@ void buildHist(uint tid: SV_DispatchThreadID, uniform RadixState state) {
   // read src, update histOffs in for loop
   for (uint i = startIdx; i < endIdx; i++) {
     uint digit = (state.src[i].key >> state.shift) & mask;
-    state.histOffs[histStartIdx + digit] += 1;
-    
+    state.hist[histStartIdx + digit] += 1; 
   }
-
 }
 
 // wave scan
 static const uint WAVE = 32;
 [shader("compute")]
 [numthreads(WAVE, 1, 1)]
-void waveScan(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructuredBuffer<uint> histOffs, RWStructuredBuffer<uint> partial) {
-  uint n = state.numThreads;
+void waveScan(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructuredBuffer<uint> hist, RWStructuredBuffer<uint> offs, RWStructuredBuffer<uint> partial, uniform uint n) {
   uint bucket = state.bucket;
   uint numWaves = (n + WAVE - 1) / WAVE;
   for (uint i = 0; i < bucket; i++) {
     uint idx = tid * bucket + i;
-    uint val = (tid < n) ? histOffs[idx] : 0u;
+    uint val = (tid < n) ? hist[idx] : 0u;
     uint excl = WavePrefixSum(val);
     if (tid < n) {
-      histOffs[idx] = excl;
+      offs[idx] = excl;
     }
     if (tid % WAVE == WAVE - 1) {
       uint blockIdx = tid / WAVE;
@@ -90,16 +88,15 @@ void waveScan(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructu
 // add offset
 [shader("compute")]
 [numthreads(WAVE, 1, 1)]
-void addOffset(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructuredBuffer<uint> histOffs, StructuredBuffer<uint> partial) {
-  uint n = state.numThreads;
+void addOffset(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructuredBuffer<uint> offs, StructuredBuffer<uint> partial, uniform uint n) {
   uint bucket = state.bucket;
   uint numWaves = (n + WAVE - 1) / WAVE;
   if (tid >= n) return;
   uint blockIdx = tid / WAVE;
   for (uint i = 0; i < bucket; i++) {
     uint idx = tid * bucket + i;
-    uint offset = (blockIdx == 0) ? 0u : partial[i * numWaves + blockIdx];
-    histOffs[idx] += offset;
+    uint offset = partial[state.bucket * blockIdx + i];
+    offs[idx] += offset;
   }
 }
 
@@ -121,16 +118,11 @@ void scatter(uint tid: SV_DispatchThreadID, uniform RadixState state, ) {
   }
   uint histStartIdx = tid * state.bucket;
 
-  uint localCounters[256];
-  for (uint i = 0; i < state.bucket; i++) {
-    localCounters[i] = 0;
-  }
-
   for (uint i = startIdx; i < endIdx; i++) {
     uint digit = (state.src[i].key >> state.shift) & mask;
-    uint globalOffset = state.histOffs[histStartIdx + digit];
-    uint histOffset = localCounters[digit];
-    state.dst[globalOffset + histOffset] = state.src[i];
-    localCounters[digit] += 1;
+    uint localOffset = state.offs[histStartIdx + digit];
+    uint globalOffset = state.globalOffs[digit];
+    state.dst[globalOffset + localOffset] = state.src[i];
+    state.offs[histStartIdx + digit] += 1;
   }
 }

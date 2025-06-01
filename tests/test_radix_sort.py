@@ -20,7 +20,7 @@ def buf_size(request):
     return request.param
 
 
-@pytest.fixture(params=[8, 16, 32, 40, 64])
+@pytest.fixture(params=[4, 8, 16, 32, 40, 64])
 def total_bits(request):
     return request.param
 
@@ -50,7 +50,7 @@ def test_radix_sort(buf_size, total_bits):
         f"src_buf: {src_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
     )
 
-    sorted_buf = radix_sort(src_buf, bits_per_pass=8, total_bits=total_bits)
+    sorted_buf = radix_sort(src_buf, bits_per_pass=4, total_bits=total_bits, entry_per_thread = 4)
 
     logger.info(
         f"sorted_buf: {sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
@@ -63,7 +63,8 @@ def test_radix_sort(buf_size, total_bits):
         out_keys.append(kv["key"])
         out_vals.append(kv["val"])
 
-    logger.info(f"out_keys: {out_keys[:8]}")
+    logger.info(f"out_keys: {sorted(out_keys)[:8]}")
+    logger.info(f"keys: {sorted(keys)[:8]}")
 
     assert sorted(out_keys) == sorted(keys.tolist()), "Key mismatch"
     assert out_keys == sorted(out_keys), "Keys not sorted"
