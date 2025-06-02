@@ -24,7 +24,6 @@ def buf_size(request):
 def total_bits(request):
     return request.param
 
-
 def test_radix_sort(buf_size, total_bits):
     keys = np.random.randint(0, 2**total_bits, size=buf_size, dtype=np.uint64)
     values = np.arange(buf_size, dtype=np.uint32)
@@ -47,13 +46,13 @@ def test_radix_sort(buf_size, total_bits):
     src_cur.apply()
 
     logger.info(
-        f"src_buf: {src_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
+        f"src_buf: {src_buf.to_numpy().view(np.uint64).reshape(-1, 2)}"
     )
 
-    sorted_buf = radix_sort(src_buf, bits_per_pass=4, total_bits=total_bits, entry_per_thread = 4)
+    sorted_buf = radix_sort(src_buf, bits_per_pass=8, total_bits=total_bits, entry_per_thread = 256)
 
     logger.info(
-        f"sorted_buf: {sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:8]}"
+        f"sorted_buf: {sorted_buf.to_numpy().view(np.uint64).reshape(-1, 2)}"
     )
 
     dst_cur = spy.BufferCursor(elem_layout, sorted_buf)
@@ -79,9 +78,17 @@ def benchmark_buffer_size(request: pytest.FixtureRequest) -> int:
     """
     return request.param
 
+@pytest.fixture(params=[4, 8, 16])
+def benchmark_bits_per_pass(request):
+    return request.param
+
+@pytest.fixture(params=[128, 256, 512])
+def benchmark_entries_per_thread(request):
+    return request.param
+
 
 def test_radix_sort_benchmark(
-    benchmark: BenchmarkFixture, benchmark_buffer_size: int
+    benchmark: BenchmarkFixture, benchmark_buffer_size: int, benchmark_bits_per_pass: int, benchmark_entries_per_thread: int
 ):
     """Benchmark the radix sort function with varying buffer sizes.
 
@@ -114,7 +121,7 @@ def test_radix_sort_benchmark(
     src_cur.apply()
 
     # Benchmark the radix sort
-    benchmark(radix_sort, src_buf, 8, 40)
+    benchmark(radix_sort, src_buf, benchmark_bits_per_pass )
 
 
 def test_numpy_sort_benchmark(
@@ -153,7 +160,7 @@ def test_numpy_sort_benchmark(
     src_cur.apply()
 
     # Benchmark the NumPy-only sorting approach
-    benchmark(numpy_sort, src_buf)
+    benchmark(numpy_sort, src_buf, benchmark_bits_per_pass, 40, benchmark_entries_per_thread)
 
 
 def test_jax_sort_benchmark(

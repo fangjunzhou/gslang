@@ -154,6 +154,9 @@ def radix_sort(
 
         prefix_sum_inplace(hist_buf, offs_buf, state, buckets)
         logger.debug(
+            f"Prefix sum histogram: {hist_buf.to_numpy().view(np.uint32).reshape(-1, buckets)}"
+        )
+        logger.debug(
             f"Prefix sum offset: {offs_buf.to_numpy().view(np.uint32).reshape(-1, buckets)}"
         )
 
@@ -191,10 +194,13 @@ def radix_sort(
             state=state,
         )
         logger.debug(
-            f"Scatter result: {dst_buf.to_numpy().view(np.uint64).reshape(-1, 2)}"
+            "Scatter result (binary): %s",
+            np.vectorize(np.binary_repr)(dst_buf.to_numpy().view(np.uint64).reshape(-1, 2)[:,0], width=64)
         )
 
-    return dst_buf
+        src_buf, dst_buf = dst_buf, src_buf
+
+    return src_buf
 
 
 def numpy_sort(
