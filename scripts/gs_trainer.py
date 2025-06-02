@@ -270,6 +270,11 @@ if __name__ == "__main__":
         type=Path,
         help="Path to the directory to save training outputs",
     )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run the application in headless mode without GUI",
+    )
     args = parser.parse_args()
 
     camera_path = None
@@ -292,8 +297,11 @@ if __name__ == "__main__":
 
     rendering_gaussians = GaussianCloud()
     rendering_gaussians.randomize(1)
-    app = App(rendering_gaussians)
-    app_iter = app.run()
+    if not args.headless:
+        app = App(rendering_gaussians)
+        app_iter = app.run()
+    else:
+        headless_renderer = Renderer(rendering_gaussians, Camera())
 
     # Define training configuration
     training_config = TrainingConfig()
@@ -331,41 +339,71 @@ if __name__ == "__main__":
     )
 
     # Main loop to receive updates from the trainer process
-    for _ in app_iter:
-        if trainer_process.is_alive() and parent_conn.poll():
-            state: TrainerState = parent_conn.recv()
-            if state.type == TrainerStateType.EPOCH:
-                # Update epoch progress bar
-                epoch_pbar.n = state.epoch
-                epoch_pbar.set_postfix(
-                    loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
-                )
-                epoch_pbar.refresh()
-                step_pbar.reset()
-                step_pbar.total = state.total_steps
-                # Update rendering scene.
-                if (
-                    state.gaussian_arr is not None
-                    and state.gaussian_arr.size > 0
-                ):
-                    app.renderer.sync_gaussians(
-                        state.gaussian_arr, state.num_gaussians
+    if not args.headless:
+        for _ in app_iter:
+            if trainer_process.is_alive() and parent_conn.poll():
+                state: TrainerState = parent_conn.recv()
+                if state.type == TrainerStateType.EPOCH:
+                    # Update epoch progress bar
+                    epoch_pbar.n = state.epoch
+                    epoch_pbar.set_postfix(
+                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
                     )
-                if state.epoch > 0:
-                    app.renderer.to_ply(
-                        args.save_path / f"epoch_{state.epoch:03d}.ply"
+                    epoch_pbar.refresh()
+                    step_pbar.reset()
+                    step_pbar.total = state.total_steps
+                    # Update rendering scene.
+                    if (
+                        state.gaussian_arr is not None
+                        and state.gaussian_arr.size > 0
+                    ):
+                        app.renderer.sync_gaussians(
+                            state.gaussian_arr, state.num_gaussians
+                        )
+                    if state.epoch > 0:
+                        app.renderer.to_ply(
+                            args.save_path / f"epoch_{state.epoch:03d}.ply"
+                        )
+                elif state.type == TrainerStateType.STEP:
+                    # Update epoch progress bar
+                    epoch_pbar.n = state.epoch
+                    epoch_pbar.refresh()
+                    # Update step progress bar
+                    step_pbar.update(1)
+                    step_pbar.total = state.total_steps
+                    step_pbar.set_postfix(
+                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
                     )
-            elif state.type == TrainerStateType.STEP:
-                # Update epoch progress bar
-                epoch_pbar.n = state.epoch
-                epoch_pbar.refresh()
-                # Update step progress bar
-                step_pbar.update(1)
-                step_pbar.total = state.total_steps
-                step_pbar.set_postfix(
-                    loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
-                )
-                step_pbar.refresh()
+                    step_pbar.refresh()
+    else:
+        # If running in headless mode, just wait for the trainer to finish
+        while trainer_process.is_alive():
+            if parent_conn.poll():
+                state: TrainerState = parent_conn.recv()
+                if state.type == TrainerStateType.EPOCH:
+                    epoch_pbar.n = state.epoch
+                    epoch_pbar.set_postfix(
+                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
+                    )
+                    epoch_pbar.refresh()
+                    # Save the Gaussian cloud to a file.
+                    if (
+                        state.gaussian_arr is not None
+                        and state.gaussian_arr.size > 0
+                    ):
+                        headless_renderer.sync_gaussians(
+                            state.gaussian_arr, state.num_gaussians
+                        )
+                        headless_renderer.to_ply(
+                            args.save_path / f"epoch_{state.epoch:03d}.ply"
+                        )
+
+                elif state.type == TrainerStateType.STEP:
+                    step_pbar.update(1)
+                    step_pbar.set_postfix(
+                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
+                    )
+                    step_pbar.refresh()
 
     # Kill the trainer process if it's still running
     if trainer_process.is_alive():

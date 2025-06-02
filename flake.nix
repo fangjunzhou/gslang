@@ -1,5 +1,5 @@
 {
-  description = "3D Gaussian Splatting with BVH optimization in Slang";
+  description = "3D Gaussian Splatting in Slang";
 
   inputs =
     {
