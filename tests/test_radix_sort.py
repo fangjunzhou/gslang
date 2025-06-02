@@ -83,7 +83,7 @@ def benchmark_bits_per_pass(request):
     return request.param
 
 
-@pytest.fixture(params=[16, 32, 64])
+@pytest.fixture(params=[32, 64, 128, 256])
 def benchmark_entries_per_thread(request):
     return request.param
 
@@ -125,7 +125,13 @@ def test_radix_sort_benchmark(
     src_cur.apply()
 
     # Benchmark the radix sort
-    benchmark(radix_sort, src_buf, benchmark_bits_per_pass)
+    benchmark(
+        radix_sort,
+        src_buf,
+        benchmark_bits_per_pass,
+        40,
+        benchmark_entries_per_thread,
+    )
 
 
 def test_numpy_sort_benchmark(

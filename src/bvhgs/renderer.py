@@ -6,7 +6,7 @@ from bvhgs import device
 from bvhgs.camera import Camera
 from bvhgs.gaussian import GaussianCloud
 from bvhgs.prefix_sum import prefix_sum
-from bvhgs.radix_sort import numpy_sort, radix_sort, stable_radix_sort
+from bvhgs.radix_sort import numpy_sort, radix_sort
 import jax
 import jax.numpy as jnp
 from PIL import Image
@@ -419,7 +419,12 @@ class Renderer:
             },
         )
         # Sort tiles.
-        numpy_sort(gaussian_table_buf)
+        radix_sort(
+            gaussian_table_buf,
+            bits_per_pass=2,
+            total_bits=40,
+            entry_per_thread=16,
+        )
         # Create a histogram buffer for the tiles.
         hist_buf = device.create_buffer(
             element_count=16 * 16,
