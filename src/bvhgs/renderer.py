@@ -421,9 +421,9 @@ class Renderer:
         # Sort tiles.
         radix_sort(
             gaussian_table_buf,
-            bits_per_pass=2,
+            bits_per_pass=4,
             total_bits=40,
-            entry_per_thread=16,
+            entry_per_thread=128,
         )
         # Create a histogram buffer for the tiles.
         hist_buf = device.create_buffer(
