@@ -7,8 +7,8 @@ import logging
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from bvhgs import device
-from bvhgs import gaussian_module
+from gslang import device
+from gslang import gaussian_module
 
 
 np.random.seed(42)

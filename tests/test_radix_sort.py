@@ -5,8 +5,8 @@ from typing import Dict, Tuple, cast
 import numpy as np
 import pytest
 import slangpy as spy
-from bvhgs import device
-from bvhgs.radix_sort import radix_sort, numpy_sort, jax_sort
+from gslang import device
+from gslang.radix_sort import radix_sort, numpy_sort, jax_sort
 from pytest_benchmark.fixture import BenchmarkFixture
 
 

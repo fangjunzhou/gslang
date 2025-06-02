@@ -4,7 +4,7 @@ import pycolmap
 import quaternion
 from PIL import Image
 
-from bvhgs.camera import Camera
+from gslang.camera import Camera
 
 
 class SFMDataset:
@@ -54,7 +54,9 @@ class SFMDataset:
             # Get camera pose.
             pose = image.cam_from_world.inverse()
             pose_quat = pose.rotation.quat
-            rotation = glm.quat(pose_quat[3], pose_quat[0], pose_quat[1], pose_quat[2])
+            rotation = glm.quat(
+                pose_quat[3], pose_quat[0], pose_quat[1], pose_quat[2]
+            )
             position = glm.vec3(pose.translation)
             # Get camera intrinsics.
             sx = colmap_cam.width
@@ -95,9 +97,13 @@ class SFMDataset:
 
         # Check if paths exist
         if not camera_path.exists():
-            raise FileNotFoundError(f"Camera file {camera_path} does not exist.")
+            raise FileNotFoundError(
+                f"Camera file {camera_path} does not exist."
+            )
         if not image_dir.exists():
-            raise FileNotFoundError(f"Image directory {image_dir} does not exist.")
+            raise FileNotFoundError(
+                f"Image directory {image_dir} does not exist."
+            )
 
         # Load camera data from JSON
         with open(camera_path, "r") as f:
@@ -106,7 +112,9 @@ class SFMDataset:
         # Process each camera entry
         for camera_data in cameras_data:
             # Skip incomplete entries
-            if "img_name" not in camera_data or not all(key in camera_data for key in ["fx", "width", "height"]):
+            if "img_name" not in camera_data or not all(
+                key in camera_data for key in ["fx", "width", "height"]
+            ):
                 print(f"Skipping incomplete camera data: {camera_data}")
                 continue
 
@@ -119,34 +127,34 @@ class SFMDataset:
 
             # Load image to get dimensions
             img = Image.open(image_path)
-            
+
             # Extract camera parameters
             focal_length = camera_data.get("fx", 0)
             width = camera_data.get("width", img.width)
             height = camera_data.get("height", img.height)
-            
+
             # Create sensor size
             sensor_size = glm.uvec2(width, height)
-            
+
             # Extract position (if available)
             position = glm.vec3(0.0)
             if "position" in camera_data:
                 position = glm.vec3(camera_data["position"][0:3])
-            
+
             # Extract rotation (if available)
             rotation = glm.quat(1.0, 0.0, 0.0, 0.0)  # Identity quaternion
             if "rotation" in camera_data:
                 rotation_mat = np.array(camera_data["rotation"]).reshape(3, 3)
                 rotation_quat = quaternion.from_rotation_matrix(rotation_mat)
                 rotation = glm.quat(quaternion.as_float_array(rotation_quat))
-            
+
             # Create camera object
             camera = Camera(
                 rotation=rotation,
                 position=position,
                 sensor_size=sensor_size,
-                focal_length=focal_length
+                focal_length=focal_length,
             )
-            
+
             # Append camera and image path to the list
             self.img_pairs.append((camera, image_path))

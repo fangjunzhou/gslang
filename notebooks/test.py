@@ -10,13 +10,13 @@ import jax
 import jax.numpy as jnp
 
 
-from bvhgs import device
-from bvhgs.data import SFMDataset
-from bvhgs.camera import Camera
-from bvhgs.gaussian import GaussianCloud
-from bvhgs.renderer import Renderer
-from bvhgs.prefix_sum import prefix_sum
-from bvhgs.radix_sort import radix_sort, numpy_sort
+from gslang import device
+from gslang.data import SFMDataset
+from gslang.camera import Camera
+from gslang.gaussian import GaussianCloud
+from gslang.renderer import Renderer
+from gslang.prefix_sum import prefix_sum
+from gslang.radix_sort import radix_sort, numpy_sort
 
 # %%
 np.random.seed(0)
@@ -26,7 +26,9 @@ np.random.seed(0)
 
 # %%
 gaussians = GaussianCloud()
-gaussians.load_from_colmap(pathlib.Path("../resources/dataset/tandt_db/tandt/truck/sparse/0/"))
+gaussians.load_from_colmap(
+    pathlib.Path("../resources/dataset/tandt_db/tandt/truck/sparse/0/")
+)
 len(gaussians)
 
 # %% [markdown]
@@ -63,8 +65,10 @@ gaussian_cursor.apply()
 # %%
 sfm_dataset = SFMDataset()
 sfm_dataset.load_from_colmap(
-    colmap_path=pathlib.Path("../resources/dataset/tandt_db/tandt/truck/sparse/0/"),
-    image_dir=pathlib.Path("../resources/dataset/tandt_db/tandt/truck/images/")
+    colmap_path=pathlib.Path(
+        "../resources/dataset/tandt_db/tandt/truck/sparse/0/"
+    ),
+    image_dir=pathlib.Path("../resources/dataset/tandt_db/tandt/truck/images/"),
 )
 
 # %%
@@ -110,8 +114,8 @@ ker_proj.dispatch(
         "g_camera": camera.to_slang(),
         "g_gaussian_3d": gaussian_buf,
         "g_gaussian_2d": gaussian2d_buf,
-        "g_inside_flag": inside_flag_buf
-    }
+        "g_inside_flag": inside_flag_buf,
+    },
 )
 
 # %%
@@ -157,8 +161,8 @@ ker_cull.dispatch(
         "g_gaussian_2d": gaussian2d_buf,
         "g_inside_flag": inside_flag_buf,
         "g_inside_offset": inside_offset_buf,
-        "g_gaussian_2d_culled": culled_gaussian_buf
-    }
+        "g_gaussian_2d_culled": culled_gaussian_buf,
+    },
 )
 
 # %%
@@ -193,8 +197,8 @@ ker_tile.dispatch(
     numViewing=num_viewing,
     vars={
         "g_gaussian_2d_culled": culled_gaussian_buf,
-        "g_num_tiles": num_tile_buf
-    }
+        "g_num_tiles": num_tile_buf,
+    },
 )
 
 # %%
@@ -221,7 +225,7 @@ ker_build_gs.dispatch(
         "g_gaussian_2d_culled": culled_gaussian_buf,
         "g_num_tiles_prefix": num_tile_prefix_buf,
         "g_gaussian_table": gaussian_table_buf,
-    }
+    },
 )
 
 # %% [markdown]
@@ -239,8 +243,7 @@ ker_tile_hist = device.create_compute_kernel(
 hist_buf = device.create_buffer(
     element_count=2**8,
     struct_type=program.reflection.g_tile_hist_atomic,
-    usage=spy.BufferUsage.shader_resource
-    | spy.BufferUsage.unordered_access,
+    usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
 )
 # Compute the histogram of the Gaussian table.
 ker_tile_hist.dispatch(
@@ -280,8 +283,8 @@ ker_duplicate.dispatch(
     vars={
         "g_gaussian_2d_culled": culled_gaussian_buf,
         "g_gaussian_table": gaussian_table_buf,
-        "g_gaussian_2d_sorted": gaussian_2d_sorted_buf
-    }
+        "g_gaussian_2d_sorted": gaussian_2d_sorted_buf,
+    },
 )
 
 # %%
@@ -290,8 +293,7 @@ render_target = device.create_texture(
     format=spy.Format.rgba32_float,
     width=camera.sensor_size.x,
     height=camera.sensor_size.y,
-    usage=spy.TextureUsage.shader_resource
-    | spy.TextureUsage.unordered_access,
+    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
 )
 
 depth_target = device.create_texture(
@@ -299,8 +301,7 @@ depth_target = device.create_texture(
     format=spy.Format.rgba32_float,
     width=camera.sensor_size.x,
     height=camera.sensor_size.y,
-    usage=spy.TextureUsage.shader_resource
-    | spy.TextureUsage.unordered_access,
+    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
 )
 
 num_depth_buf = device.create_texture(
@@ -308,8 +309,7 @@ num_depth_buf = device.create_texture(
     format=spy.Format.r32_uint,
     width=camera.sensor_size.x,
     height=camera.sensor_size.y,
-    usage=spy.TextureUsage.shader_resource
-    | spy.TextureUsage.unordered_access,
+    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
 )
 
 # %%
@@ -336,7 +336,7 @@ ker_rasterize.dispatch(
         "g_render_target": render_target,
         "g_depth_target": depth_target,
         "g_num_rendered_gaussians": num_depth_buf,
-    }
+    },
 )
 
 # %%
@@ -350,9 +350,11 @@ plt.imshow(raw_image)
 image_arr = jnp.array(image)
 plt.imshow(image_arr)
 
+
 # %%
 def image_loss(src: jnp.ndarray, dst: jnp.ndarray):
-    return jnp.mean((dst - src)**2)
+    return jnp.mean((dst - src) ** 2)
+
 
 # %%
 image_loss(raw_image, image_arr)
@@ -370,7 +372,9 @@ render_target_grad.shape
 
 # %%
 rg_shape = render_target_grad.shape
-render_target_grad = jnp.concatenate((render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))), axis=-1)
+render_target_grad = jnp.concatenate(
+    (render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))), axis=-1
+)
 render_target_grad.shape
 
 # %% [markdown]
@@ -390,8 +394,7 @@ grad_texture = device.create_texture(
     format=spy.Format.rgba32_float,
     width=camera.sensor_size.x,
     height=camera.sensor_size.y,
-    usage=spy.TextureUsage.shader_resource
-    | spy.TextureUsage.unordered_access,
+    usage=spy.TextureUsage.shader_resource | spy.TextureUsage.unordered_access,
 )
 
 # %%
@@ -401,14 +404,12 @@ grad_texture.copy_from_numpy(render_target_grad)
 a_gaussian_2d_sorted_grad_buf = device.create_buffer(
     element_count=num_table_entries,
     struct_type=program.reflection.d_a_gaussian_2d_sorted,
-    usage=spy.BufferUsage.shader_resource
-    | spy.BufferUsage.unordered_access,
+    usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
 )
 gaussian_2d_sorted_grad_buf = device.create_buffer(
     element_count=num_table_entries,
     struct_type=program.reflection.d_gaussian_2d_sorted,
-    usage=spy.BufferUsage.shader_resource
-    | spy.BufferUsage.unordered_access,
+    usage=spy.BufferUsage.shader_resource | spy.BufferUsage.unordered_access,
 )
 
 # %%
@@ -427,7 +428,7 @@ ker_bwd_rasterize.dispatch(
         "d_render_target": grad_texture,
         "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
         "g_num_rendered_gaussians": num_depth_buf,
-    }
+    },
 )
 
 # %%
@@ -436,8 +437,7 @@ ker_grad_descent.dispatch(
     lr=1e-2,
     vars={
         "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
-        
-    }
+    },
 )
 
 # %% [markdown]
@@ -461,7 +461,7 @@ for epoch in range(num_epoch):
             "g_render_target": render_target,
             "g_depth_target": depth_target,
             "g_num_rendered_gaussians": num_depth_buf,
-        }
+        },
     )
     raw_image = jnp.array(render_target.to_numpy()[:, :, :3])
     loss, render_target_grad = loss_grad(raw_image, image_arr)
@@ -469,13 +469,16 @@ for epoch in range(num_epoch):
     print(f"Loss after gradient descent: {loss}")
 
     rg_shape = render_target_grad.shape
-    render_target_grad = jnp.concatenate((render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))), axis=-1)
-    
+    render_target_grad = jnp.concatenate(
+        (render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))), axis=-1
+    )
+
     a_gaussian_2d_sorted_grad_buf.copy_from_numpy(
-        np.zeros((a_gaussian_2d_sorted_grad_buf.size,), dtype=np.uint8))
-    
+        np.zeros((a_gaussian_2d_sorted_grad_buf.size,), dtype=np.uint8)
+    )
+
     grad_texture.copy_from_numpy(render_target_grad)
-    
+
     ker_bwd_rasterize.dispatch(
         thread_count=[camera.sensor_size.x, camera.sensor_size.y, 1],
         vars={
@@ -487,17 +490,15 @@ for epoch in range(num_epoch):
             "d_render_target": grad_texture,
             "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
             "g_num_rendered_gaussians": num_depth_buf,
-        }
+        },
     )
-    
+
     ker_grad_descent.dispatch(
         thread_count=[num_table_entries, 1, 1],
         lr=lr,
-        vars={
-            "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf
-        }
+        vars={"d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf},
     )
-    
+
     gd = a_gaussian_2d_sorted_grad_buf.to_numpy().view(np.float32)
     print(f"Max gradient: {np.max(gd)}", f"Min gradient: {np.min(gd)}")
 
@@ -505,7 +506,7 @@ for epoch in range(num_epoch):
 # %%
 import matplotlib.pyplot as plt
 
-#histogram of gd
+# histogram of gd
 plt.figure(figsize=(10, 5))
 plt.hist(gd, bins=100, range=(-0.1, 0.1), density=True)
 plt.title("Histogram of Gaussian Gradient")
@@ -518,5 +519,3 @@ plt.show()
 
 # %%
 a_gaussian_2d_sorted_grad_buf.size
-
-

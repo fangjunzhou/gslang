@@ -5,10 +5,10 @@ from pyglm import glm
 import quaternion
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from bvhgs import device
-from bvhgs.camera import Camera
-from bvhgs.gaussian import GaussianCloud
-from bvhgs.renderer import Renderer
+from gslang import device
+from gslang.camera import Camera
+from gslang.gaussian import GaussianCloud
+from gslang.renderer import Renderer
 
 
 @pytest.fixture(params=[2**i for i in range(10, 20)])
@@ -125,29 +125,29 @@ def test_renderer_with_multiple_camera_positions(
     )
 
     renderer = Renderer(gaussian_cloud, camera)
-    
+
     # Get number of rounds from benchmark fixture (or default to 8 if not available)
     num_rounds = benchmark._min_rounds
-    
+
     # Pre-compute camera positions for different angles
     angles = np.linspace(0, 2 * np.pi, num_rounds, endpoint=False)
     distance = 10.0
     camera_positions = []
     camera_rotations = []
-    
+
     for angle in angles:
         # Calculate camera position to orbit around the scene
         camera_pos = glm.vec3(
             np.sin(angle) * distance, np.cos(angle) * distance, 5.0
         )
-        
+
         # Look at origin
         direction = -glm.normalize(camera_pos)
-        
+
         # Create a quaternion that rotates from forward (-z) to direction
         forward = glm.vec3(0.0, 0.0, -1.0)
         rotation_axis = glm.cross(forward, direction)
-        
+
         if glm.length(rotation_axis) > 1e-6:
             rotation_axis = glm.normalize(rotation_axis)
             angle_between = np.arccos(glm.dot(forward, direction))
@@ -155,29 +155,29 @@ def test_renderer_with_multiple_camera_positions(
         else:
             # Handle parallel vectors
             rotation = glm.quat(1.0, 0.0, 0.0, 0.0)
-        
+
         camera_positions.append(camera_pos)
         camera_rotations.append(rotation)
-    
+
     # Current position index
     position_index = 0
-    
+
     def setup():
         """Setup function that changes camera position before each benchmark round."""
         nonlocal position_index
-        
+
         # Update the camera with the next position in the orbit
         renderer.camera.position = camera_positions[position_index]
         renderer.camera.rotation = camera_rotations[position_index]
-        
+
         # Move to next position for the next round
         position_index = (position_index + 1) % len(camera_positions)
-    
+
     # Benchmark a single frame render using pedantic mode
     # This will run the setup function before each round, changing the camera position
     benchmark.pedantic(
         renderer.render,  # Target function to benchmark
-        setup=setup,      # Setup function to run before each round
-        rounds=num_rounds,# Number of rounds (one for each camera position)
-        iterations=1      # Number of iterations per round
+        setup=setup,  # Setup function to run before each round
+        rounds=num_rounds,  # Number of rounds (one for each camera position)
+        iterations=1,  # Number of iterations per round
     )

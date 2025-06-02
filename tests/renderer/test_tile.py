@@ -1,9 +1,9 @@
 import slangpy as spy
 import numpy as np
 import pytest
-from bvhgs import device
+from gslang import device
 from pytest_benchmark.fixture import BenchmarkFixture
-from bvhgs.prefix_sum import prefix_sum
+from gslang.prefix_sum import prefix_sum
 
 
 def test_tile_computation():

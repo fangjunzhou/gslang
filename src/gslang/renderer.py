@@ -2,11 +2,11 @@ import logging
 import slangpy as spy
 import numpy as np
 
-from bvhgs import device
-from bvhgs.camera import Camera
-from bvhgs.gaussian import GaussianCloud
-from bvhgs.prefix_sum import prefix_sum
-from bvhgs.radix_sort import numpy_sort, radix_sort
+from gslang import device
+from gslang.camera import Camera
+from gslang.gaussian import GaussianCloud
+from gslang.prefix_sum import prefix_sum
+from gslang.radix_sort import numpy_sort, radix_sort
 import jax
 import jax.numpy as jnp
 from PIL import Image

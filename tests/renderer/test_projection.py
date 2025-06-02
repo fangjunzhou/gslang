@@ -5,13 +5,13 @@ import pytest
 import numpy as np
 import slangpy as spy
 
-from bvhgs import device
-from bvhgs import gaussian_module, camera_module
-from bvhgs.camera import Camera
+from gslang import device
+from gslang import gaussian_module, camera_module
+from gslang.camera import Camera
 from pyglm import glm
 
-from bvhgs.gaussian import GaussianCloud
-from bvhgs.prefix_sum import prefix_sum
+from gslang.gaussian import GaussianCloud
+from gslang.prefix_sum import prefix_sum
 
 
 @pytest.fixture(params=[(1,), (4,)])

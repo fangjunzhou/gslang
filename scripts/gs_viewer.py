@@ -1,12 +1,12 @@
 import argparse
 from pathlib import Path
 
-from bvhgs.app import App
-from bvhgs.gaussian import GaussianCloud
+from gslang.app import App
+from gslang.gaussian import GaussianCloud
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BVHGS Viewer")
+    parser = argparse.ArgumentParser(description="gslang Viewer")
     parser.add_argument(
         "path",
         type=Path,

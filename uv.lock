@@ -236,7 +236,7 @@ css = [
 ]
 
 [[package]]
-name = "bvhgs"
+name = "gslang"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
