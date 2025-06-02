@@ -80,7 +80,7 @@ void waveScan(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructu
     }
     if (tid % WAVE == WAVE - 1) {
       uint blockIdx = tid / WAVE;
-      partial[i * numWaves + blockIdx] = excl + val;
+      partial[state.bucket * blockIdx + i] = excl + val;
     }
   }
 }
@@ -90,7 +90,6 @@ void waveScan(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructu
 [numthreads(WAVE, 1, 1)]
 void addOffset(uint tid: SV_DispatchThreadID, uniform RadixState state, RWStructuredBuffer<uint> offs, StructuredBuffer<uint> partial, uniform uint n) {
   uint bucket = state.bucket;
-  uint numWaves = (n + WAVE - 1) / WAVE;
   if (tid >= n) return;
   uint blockIdx = tid / WAVE;
   for (uint i = 0; i < bucket; i++) {
