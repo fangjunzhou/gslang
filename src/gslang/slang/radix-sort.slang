@@ -59,7 +59,7 @@ void buildHist(uint tid: SV_DispatchThreadID, uniform RadixState state) {
 
   // read src, update histOffs in for loop
   for (uint i = startIdx; i < endIdx; i++) {
-    uint digit = (state.src[i].key >> state.shift) & mask;
+    uint digit = uint(state.src[i].key >> state.shift) & mask;
     state.hist[histStartIdx + digit] += 1; 
   }
 }
@@ -118,7 +118,7 @@ void scatter(uint tid: SV_DispatchThreadID, uniform RadixState state, ) {
   uint histStartIdx = tid * state.bucket;
 
   for (uint i = startIdx; i < endIdx; i++) {
-    uint digit = (state.src[i].key >> state.shift) & mask;
+    uint digit = uint(state.src[i].key >> state.shift) & mask;
     uint localOffset = state.offs[histStartIdx + digit];
     uint globalOffset = state.globalOffs[digit];
     state.dst[globalOffset + localOffset] = state.src[i];
