@@ -386,6 +386,8 @@ if __name__ == "__main__":
                         loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
                     )
                     epoch_pbar.refresh()
+                    step_pbar.reset()
+                    step_pbar.total = state.total_steps
                     # Save the Gaussian cloud to a file.
                     if (
                         state.gaussian_arr is not None
@@ -400,6 +402,7 @@ if __name__ == "__main__":
 
                 elif state.type == TrainerStateType.STEP:
                     step_pbar.update(1)
+                    step_pbar.total = state.total_steps
                     step_pbar.set_postfix(
                         loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
                     )
