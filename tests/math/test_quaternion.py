@@ -6,8 +6,8 @@ import pytest_benchmark
 import quaternion
 import logging
 
-import bvhgs
-from bvhgs import math_module
+import gslang
+from gslang import math_module
 
 
 np.random.seed(0)

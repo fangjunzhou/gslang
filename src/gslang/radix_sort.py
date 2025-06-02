@@ -4,7 +4,7 @@ import numpy as np
 import slangpy as spy
 import jax.numpy as jnp
 
-from bvhgs import device
+from gslang import device
 
 
 np.random.seed(0)
@@ -25,7 +25,11 @@ k_add = device.create_compute_kernel(prog_add)
 k_scatter = device.create_compute_kernel(prog_sct)
 
 WAVE = 32
-def prefix_sum_inplace(histBuf: spy.Buffer, offsBuf: spy.Buffer, state: dict, bucket: int) -> None:
+
+
+def prefix_sum_inplace(
+    histBuf: spy.Buffer, offsBuf: spy.Buffer, state: dict, bucket: int
+) -> None:
     level_info = []
     cur_src = histBuf
     cur_dst = offsBuf

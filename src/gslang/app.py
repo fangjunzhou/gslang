@@ -3,10 +3,10 @@ import slangpy as spy
 import numpy as np
 from pyglm import glm
 
-from bvhgs import device
-from bvhgs.gaussian import GaussianCloud
-from bvhgs.camera import Camera
-from bvhgs.renderer import Renderer
+from gslang import device
+from gslang.gaussian import GaussianCloud
+from gslang.camera import Camera
+from gslang.renderer import Renderer
 
 
 class App:
@@ -20,7 +20,7 @@ class App:
         self.window = spy.Window(
             width=resolution[0],
             height=resolution[1],
-            title="BVHGS Viewer",
+            title="gslang Viewer",
             resizable=False,
         )
         self.device = device
@@ -78,7 +78,7 @@ class App:
         """Setup ImGui UI elements."""
         screen = self.ui.screen
         window = spy.ui.Window(
-            screen, "BVHGS Controls", size=spy.float2(500, 250)
+            screen, "gslang Controls", size=spy.float2(500, 250)
         )
 
         # Add a simple button

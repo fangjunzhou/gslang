@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from bvhgs import math_module
+from gslang import math_module
 
 
 np.random.seed(0)

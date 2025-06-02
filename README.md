@@ -1,1 +1,1 @@
-# 3DGS-Slang
+# GSlang: A 3DGS Implementation in Slang

@@ -1,6 +1,6 @@
 import numpy as np
 import slangpy as spy
-from bvhgs import device
+from gslang import device
 from typing import cast
 
 

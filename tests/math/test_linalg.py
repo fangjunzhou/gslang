@@ -3,8 +3,8 @@ import slangpy as spy
 import numpy as np
 import logging
 
-from bvhgs import device
-from bvhgs import math_module
+from gslang import device
+from gslang import math_module
 
 
 np.random.seed(0)

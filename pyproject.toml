@@ -1,5 +1,5 @@
 [project]
-name = "bvhgs"
+name = "gslang"
 version = "0.1.0"
 description = "3D Gaussian Splatting with BVH optimization in Slang"
 readme = "README.md"

@@ -1,10 +1,11 @@
 import numpy as np
 import slangpy as spy
 import pytest
-from bvhgs import device
-from bvhgs.prefix_sum import prefix_sum
+from gslang import device
+from gslang.prefix_sum import prefix_sum
 from typing import cast
 import pytest_benchmark
+
 
 @pytest.fixture(
     params=[

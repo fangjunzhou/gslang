@@ -10,16 +10,16 @@ from enum import Enum
 from pyglm import glm
 import logging
 
-from bvhgs.app import App
-from bvhgs.camera import Camera
-from bvhgs.gaussian import GaussianCloud
-from bvhgs.data import SFMDataset
-from bvhgs.renderer import Renderer
+from gslang.app import App
+from gslang.camera import Camera
+from gslang.gaussian import GaussianCloud
+from gslang.data import SFMDataset
+from gslang.renderer import Renderer
 
 
 @dataclass
 class TrainingConfig:
-    """Configuration for the BVHGS training process."""
+    """Configuration for the gslang training process."""
 
     num_epochs: int = 64
     # Learning rate and decay parameters.
@@ -60,7 +60,7 @@ class TrainerStateType(Enum):
 
 @dataclass
 class TrainerState:
-    """State of the BVHGS trainer process."""
+    """State of the gslang trainer process."""
 
     type: TrainerStateType = TrainerStateType.STEP
     epoch: int = 0
@@ -80,7 +80,7 @@ def trainer_worker(
     training_config: TrainingConfig,
     conn: Connection,
 ):
-    """Main function to run the BVHGS trainer."""
+    """Main function to run the gslang trainer."""
     # logging.basicConfig(
     #     level=logging.INFO
     #
@@ -241,7 +241,7 @@ def trainer_worker(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BVHGS Trainer")
+    parser = argparse.ArgumentParser(description="gslang Trainer")
     parser.add_argument(
         "path",
         type=Path,
@@ -314,7 +314,7 @@ if __name__ == "__main__":
     )
 
     # Start the trainer process
-    print("Starting BVHGS trainer...")
+    print("Starting gslang trainer...")
     trainer_process.start()
 
     epoch_pbar = tqdm(
