@@ -49,6 +49,7 @@ RWStructuredBuffer<Gaussian3D> v_gaussian_3d;
 RWStructuredBuffer<uint> g_duplicate_flag;
 RWStructuredBuffer<uint> g_duplicate_prefix;
 RWStructuredBuffer<Gaussian3D> g_gaussian_3d_src;
+RWStructuredBuffer<Gaussian2D> g_gaussian_2d_src;
 
 // opacity control
 RWStructuredBuffer<uint> g_keep_flag;

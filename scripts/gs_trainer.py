@@ -21,7 +21,7 @@ from gslang.renderer import Renderer
 class TrainingConfig:
     """Configuration for the gslang training process."""
 
-    num_epochs: int = 64
+    num_epochs: int = 128
     # Learning rate and decay parameters.
     learning_rate: float = 1e-3
     position_lr_factor: float = 1.0
@@ -29,7 +29,7 @@ class TrainingConfig:
     rotation_lr_factor: float = 1.0
     scale_lr_factor: float = 1.0
     color_lr_factor: float = 1.0
-    opacity_lr_factor: float = 1.0
+    opacity_lr_factor: float = 2.0
     sh_lr_factor: float = 1.0
     decay_steps: int = 16
     # Adam optimizer parameters.
@@ -37,18 +37,19 @@ class TrainingConfig:
     beta2: float = 0.999
     weight_decay: float = 1e-4
     # Warmup parameters.
-    warmup_levels: int = 4
+    warmup_levels: int = 2
     warmup_steps: int = 250
     # Densification parameters.
     densify_steps: int = 100
-    densify_scale: float = 1e-2
+    densify_scale: float = 5e-3
     # Step to prune opacity below a threshold.
     opacity_prune_step: int = 100
     # Step to skip pruning opacity after a reset.
-    opacity_prune_skip_step: int = 500
+    opacity_prune_skip_step: int = 2000
     # Step to reset all opacity below a threshold.
-    reset_opacity_steps: int = 3000
-    gaussian_prune_threshold: float = -4
+    reset_opacity_steps: int = 10000
+    gaussian_prune_threshold: float = -3
+    gaussian_reset_opacity: float = -3.5
 
 
 class TrainerStateType(Enum):
@@ -95,7 +96,8 @@ def trainer_worker(
             opacity_factor=-2,
             add_random_gaussians=True,
             num_random_gaussians=10000,
-            random_gaussian_scale=-2,
+            random_gaussian_scale=-1,
+            random_gaussian_position_range=10,
         )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
@@ -181,7 +183,7 @@ def trainer_worker(
             )
             running_loss += loss
             if optm_step == 0:
-                renderer.recalcuate_avg_3dgs_size()
+                renderer.recalcuate_avg_2dgs_size()
 
             # Optimizer step.
             optm_step += 1
@@ -196,7 +198,10 @@ def trainer_worker(
             if (optm_step + 1) % training_config.reset_opacity_steps == 0:
                 need_reset_opacity = True
             # Do not reset opacity in the last few epochs.
-            if epoch >= training_config.num_epochs - 4:
+            if (
+                training_config.num_epochs * len(sfm_dataset) - optm_step
+                < training_config.reset_opacity_steps
+            ):
                 need_reset_opacity = False
 
             if (optm_step + 1) % training_config.opacity_prune_step == 0 and (
@@ -212,6 +217,7 @@ def trainer_worker(
                     use_opacity_prune=need_opacity_prune,
                     use_reset_opacity=need_reset_opacity,
                     gaussian_opacity_prune_threshold=training_config.gaussian_prune_threshold,
+                    gaussian_reset_opacity=training_config.gaussian_reset_opacity,
                 )
 
             # Send the current state to the parent process.

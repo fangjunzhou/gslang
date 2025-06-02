@@ -21,6 +21,7 @@ void removeGaussian(uint tid: SV_DispatchThreadID, uniform uint numSrc) {
     uint dst = g_keep_prefix[tid] - 1u;
 
     g_gaussian_3d[dst] = g_gaussian_3d_src[tid];
+    g_gaussian_2d[dst] = g_gaussian_2d_src[tid];
     d_gaussian_3d[dst] = d_gaussian_3d_src[tid];
     m_gaussian_3d[dst] = m_gaussian_3d_src[tid];
     v_gaussian_3d[dst] = v_gaussian_3d_src[tid];

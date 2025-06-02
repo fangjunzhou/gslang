@@ -211,11 +211,8 @@ class GaussianCloud:
                 np.ones((num_random_gaussians, 3)).astype(np.float32)
                 * random_gaussian_scale
             )
-            random_colors = np.random.rand(num_random_gaussians, 3).astype(
+            random_colors = np.zeros((num_random_gaussians, 3)).astype(
                 np.float32
-            )
-            random_colors = np.log(
-                random_colors / (1 - random_colors + 1e-5) + 1e-5
             )
             random_opacities = np.full(
                 (num_random_gaussians, 1), opacity_factor, dtype=np.float32

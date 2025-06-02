@@ -39,7 +39,7 @@ class Renderer:
     ker_duplicate_gs: spy.ComputeKernel
     ker_rasterize: spy.ComputeKernel
     image_arr: jnp.ndarray = jnp.array([])
-    avg_gaussian_3d_size: jnp.ndarray = jnp.array([])
+    avg_gaussian_2d_size: jnp.ndarray = jnp.array([])
 
     def __init__(self, gaussians: GaussianCloud, camera: Camera) -> None:
         """Constructor for the Rasterizer class.
@@ -226,6 +226,12 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
+        self.gaussian_2d_buf = device.create_buffer(
+            element_count=len(gaussians),
+            struct_type=self.program.reflection.g_gaussian_2d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
         self.m_buf = device.create_buffer(
             element_count=len(gaussians),
             struct_type=self.program.reflection.g_gaussian_3d,
@@ -333,6 +339,7 @@ class Renderer:
         densify_scale: float = 1.0,
         overConstructionShrinkScale: float = 1.6,
         gaussian_opacity_prune_threshold: float = -3,
+        gaussian_reset_opacity: float = -4,
     ) -> float:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
@@ -344,6 +351,7 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
+        self.gaussian_2d_buf = gaussian_2d_buf
         inside_flag_buf = device.create_buffer(
             element_count=self.num_gaussians,
             struct_type=self.program.reflection.g_inside_flag,
@@ -627,8 +635,8 @@ class Renderer:
 
         def densify():
             """Densify the Gaussian points."""
-            if self.avg_gaussian_3d_size.size == 0:
-                self.recalcuate_avg_3dgs_size()
+            if self.avg_gaussian_2d_size.size == 0:
+                self.recalcuate_avg_2dgs_size()
 
             duplicate_flag_buf = device.create_buffer(
                 element_count=self.num_gaussians,
@@ -641,7 +649,7 @@ class Renderer:
             self.ker_mark_duplicated.dispatch(
                 thread_count=[self.num_gaussians, 1, 1],
                 threashold=0.0002,
-                avgScale=self.avg_gaussian_3d_size,
+                avgScale=self.avg_gaussian_2d_size,
                 vars={
                     "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
                     "g_inside_flag": inside_flag_buf,
@@ -716,10 +724,10 @@ class Renderer:
             )
 
         if use_reset_opacity:
-            self.set_all_opacity(gaussian_opacity_prune_threshold - 0.1)
+            self.set_all_opacity(gaussian_reset_opacity)
 
         if use_densify:
-            self.recalcuate_avg_3dgs_size()
+            self.recalcuate_avg_2dgs_size()
             densify()
 
         return loss
@@ -750,6 +758,7 @@ class Renderer:
         num_keep = int(keep_prefix_np[-1])
 
         old_gaussian_3d_buf = self.gaussian_3d_buf
+        old_gaussian_2d_buf = self.gaussian_2d_buf
         old_d_gaussian_3d_buf = self.gaussian_3d_grad_buf
         old_m_buf = self.m_buf
         old_v_buf = self.v_buf
@@ -757,6 +766,12 @@ class Renderer:
         new_gaussian_3d_buf = device.create_buffer(
             element_count=num_keep,
             struct_type=self.program.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        new_gaussian_2d_buf = device.create_buffer(
+            element_count=num_keep,
+            struct_type=self.program.reflection.g_gaussian_2d,
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
@@ -784,6 +799,7 @@ class Renderer:
             numSrc=self.num_gaussians,
             vars={
                 "g_gaussian_3d_src": old_gaussian_3d_buf,
+                "g_gaussian_2d_src": old_gaussian_2d_buf,
                 "d_gaussian_3d_src": old_d_gaussian_3d_buf,
                 "m_gaussian_3d_src": old_m_buf,
                 "v_gaussian_3d_src": old_v_buf,
@@ -791,6 +807,7 @@ class Renderer:
                 "g_keep_prefix": keep_prefix_buf,
                 # target buffers
                 "g_gaussian_3d": new_gaussian_3d_buf,
+                "g_gaussian_2d": new_gaussian_2d_buf,
                 "d_gaussian_3d": new_d_gaussian_3d_buf,
                 "m_gaussian_3d": new_m_buf,
                 "v_gaussian_3d": new_v_buf,
@@ -798,6 +815,7 @@ class Renderer:
         )
 
         self.gaussian_3d_buf = new_gaussian_3d_buf
+        self.gaussian_2d_buf = new_gaussian_2d_buf
         self.gaussian_3d_grad_buf = new_d_gaussian_3d_buf
         self.m_buf = new_m_buf
         self.v_buf = new_v_buf
@@ -823,21 +841,22 @@ class Renderer:
     def optimizer_step(self) -> None:
         self.adamw_step += 1
 
-    def recalcuate_avg_3dgs_size(self):
+    def recalcuate_avg_2dgs_size(self):
         """Recalculate the average size of the Gaussian points."""
         gaussian_arr = (
-            self.gaussian_3d_buf.to_numpy()
+            self.gaussian_2d_buf.to_numpy()
             .view(np.float32)
             .reshape(self.num_gaussians, -1)
         )
-        avg_size = (
-            np.mean(gaussian_arr[:, 8:11], axis=0)
-            if device.info.type == spy.DeviceType.metal
-            else np.mean(gaussian_arr[:, 7:10], axis=0)
-        )
+        if device.info.type == spy.DeviceType.metal:
+            covariance = gaussian_arr[:, 4:8].reshape(-1, 2, 2)
+        else:
+            covariance = gaussian_arr[:, 3:7].reshape(-1, 2, 2)
+        # Use matrix norm as the average size.
+        avg_size = np.mean(np.linalg.norm(covariance, axis=(1, 2)), axis=0)
         logger.info(f"Average Gaussian size: {avg_size}")
 
-        self.avg_gaussian_3d_size = jnp.array(avg_size, dtype=jnp.float32)
+        self.avg_gaussian_2d_size = jnp.array(avg_size, dtype=jnp.float32)
 
     def backward(
         self,
