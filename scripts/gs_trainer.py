@@ -40,13 +40,13 @@ class TrainingConfig:
 
     num_step: int = 7000
     # Learning rate and decay parameters.
-    learning_rate: float = 5e-4
+    learning_rate: float = 1e-3
     position_lr_factor: float = 1.0
     pos_lr_decay_rate: float = 0.99
     rotation_lr_factor: float = 1.0
     scale_lr_factor: float = 1.0
     color_lr_factor: float = 1.0
-    opacity_lr_factor: float = 2.5
+    opacity_lr_factor: float = 1.0
     sh_lr_factor: float = 1.0
     decay_steps: int = 25
     # Adam optimizer parameters.
@@ -65,8 +65,8 @@ class TrainingConfig:
     opacity_prune_skip_step: int = 1000
     # Step to reset all opacity below a threshold.
     reset_opacity_steps: int = 7000
-    gaussian_prune_threshold: float = -3
-    gaussian_reset_opacity: float = -3.5
+    gaussian_prune_threshold: float = -2
+    gaussian_reset_opacity: float = -2.5
     # TensorBoard logging parameters.
     use_tensorboard: bool = False
     tensorboard_log_dir: str = "runs"
@@ -77,7 +77,6 @@ class TrainingConfig:
 class TrainerState:
     """State of the gslang trainer process."""
 
-    epoch: int = 0
     step: int = 0
     total_steps: int = 0
     loss: float = 0.0
@@ -403,6 +402,7 @@ if __name__ == "__main__":
     step_pbar.total = training_config.num_step
 
     # Main loop to receive updates from the trainer process
+    epoch = 0
     if not args.headless:
         for _ in app_iter:
             if trainer_process.is_alive() and parent_conn.poll():
@@ -418,10 +418,10 @@ if __name__ == "__main__":
                     app.renderer.sync_gaussians(
                         state.gaussian_arr, state.num_gaussians
                     )
-                if state.epoch > 0:
                     app.renderer.to_ply(
-                        args.save_path / f"epoch_{state.epoch:03d}.ply"
+                        args.save_path / f"epoch_{epoch:03d}.ply"
                     )
+                    epoch += 1
     else:
         # If running in headless mode, just wait for the trainer to finish
         while trainer_process.is_alive():
@@ -437,9 +437,10 @@ if __name__ == "__main__":
                     headless_renderer.sync_gaussians(
                         state.gaussian_arr, state.num_gaussians
                     )
-                    headless_renderer.to_ply(
-                        args.save_path / f"epoch_{state.epoch:03d}.ply"
+                    app.renderer.to_ply(
+                        args.save_path / f"epoch_{epoch:03d}.ply"
                     )
+                    epoch += 1
 
     # Kill the trainer process if it's still running
     if trainer_process.is_alive():
