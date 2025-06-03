@@ -9,12 +9,43 @@ from tqdm import tqdm
 from enum import Enum
 from pyglm import glm
 import logging
+from datetime import datetime
 
 from gslang.app import App
 from gslang.camera import Camera
 from gslang.gaussian import GaussianCloud
 from gslang.data import SFMDataset
 from gslang.renderer import Renderer
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+
+    HAS_TENSORBOARD = True
+except ImportError:
+    SummaryWriter = None
+    HAS_TENSORBOARD = False
+
+try:
+    import jax.numpy as jnp
+
+    HAS_JAX = True
+except ImportError:
+    HAS_JAX = False
+
+
+def convert_to_scalar(value):
+    """Convert JAX arrays, numpy arrays, or tensors to Python scalars for TensorBoard."""
+    if HAS_JAX and hasattr(value, "item"):
+        # JAX array
+        return float(value.item())
+    elif hasattr(value, "item"):
+        # NumPy array or torch tensor
+        return float(value.item())
+    elif hasattr(value, "__float__"):
+        # Already a scalar
+        return float(value)
+    else:
+        return value
 
 
 @dataclass
@@ -23,15 +54,15 @@ class TrainingConfig:
 
     num_epochs: int = 128
     # Learning rate and decay parameters.
-    learning_rate: float = 1e-3
+    learning_rate: float = 5e-4
     position_lr_factor: float = 1.0
     pos_lr_decay_rate: float = 0.99
     rotation_lr_factor: float = 1.0
     scale_lr_factor: float = 1.0
     color_lr_factor: float = 1.0
-    opacity_lr_factor: float = 2.0
+    opacity_lr_factor: float = 2.5
     sh_lr_factor: float = 1.0
-    decay_steps: int = 16
+    decay_steps: int = 25
     # Adam optimizer parameters.
     beta1: float = 0.9
     beta2: float = 0.999
@@ -50,6 +81,10 @@ class TrainingConfig:
     reset_opacity_steps: int = 10000
     gaussian_prune_threshold: float = -3
     gaussian_reset_opacity: float = -3.5
+    # TensorBoard logging parameters.
+    use_tensorboard: bool = False
+    tensorboard_log_dir: str = "runs"
+    log_step_interval: int = 10  # Log every N steps
 
 
 class TrainerStateType(Enum):
@@ -85,6 +120,22 @@ def trainer_worker(
     # logging.basicConfig(
     #     level=logging.INFO
     #
+
+    # Initialize TensorBoard writer if enabled
+    writer = None
+    if training_config.use_tensorboard and HAS_TENSORBOARD:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_dir = (
+            Path(training_config.tensorboard_log_dir)
+            / f"gslang_training_{timestamp}"
+        )
+        writer = SummaryWriter(str(log_dir))
+        print(f"TensorBoard logging enabled. Log directory: {log_dir}")
+    elif training_config.use_tensorboard and not HAS_TENSORBOARD:
+        print(
+            "Warning: TensorBoard requested but not available. Install tensorboard: pip install tensorboard"
+        )
+
     # Load scene
     gaussians = GaussianCloud()
 
@@ -185,6 +236,19 @@ def trainer_worker(
             if optm_step == 0:
                 renderer.recalcuate_avg_2dgs_size()
 
+            # Log to TensorBoard
+            if writer and optm_step % training_config.log_step_interval == 0:
+                # Convert JAX arrays to scalars for TensorBoard compatibility
+                writer.add_scalar(
+                    "Loss/Step", convert_to_scalar(loss), optm_step
+                )
+                writer.add_scalar(
+                    "Learning_Rate/Position_Decay", curr_pos_decay, optm_step
+                )
+                writer.add_scalar(
+                    "Gaussians/Count", renderer.num_gaussians, optm_step
+                )
+
             # Optimizer step.
             optm_step += 1
             if (optm_step + 1) % training_config.decay_steps == 0:
@@ -233,6 +297,19 @@ def trainer_worker(
 
         # Average loss for the epoch.
         avg_loss = running_loss / len(sfm_dataset)
+
+        # Log epoch metrics to TensorBoard
+        if writer:
+            # Convert JAX arrays to scalars for TensorBoard compatibility
+            writer.add_scalar("Loss/Epoch", convert_to_scalar(avg_loss), epoch)
+            writer.add_scalar(
+                "Gaussians/Epoch_Count", renderer.num_gaussians, epoch
+            )
+            # Log learning rate factors
+            writer.add_scalar(
+                "Learning_Rate/Position_Decay_Epoch", curr_pos_decay, epoch
+            )
+
         state = TrainerState(
             type=TrainerStateType.EPOCH,
             epoch=epoch + 1,
@@ -244,6 +321,10 @@ def trainer_worker(
             gaussian_arr=renderer.gaussian_3d_buf.to_numpy(),
         )
         conn.send(state)
+
+    # Close TensorBoard writer
+    if writer:
+        writer.close()
 
 
 if __name__ == "__main__":
@@ -281,6 +362,23 @@ if __name__ == "__main__":
         action="store_true",
         help="Run the application in headless mode without GUI",
     )
+    parser.add_argument(
+        "--tensorboard",
+        action="store_true",
+        help="Enable TensorBoard logging",
+    )
+    parser.add_argument(
+        "--tensorboard-log-dir",
+        type=str,
+        default="runs",
+        help="Directory for TensorBoard logs (default: runs)",
+    )
+    parser.add_argument(
+        "--log-step-interval",
+        type=int,
+        default=10,
+        help="Log metrics to TensorBoard every N steps (default: 10)",
+    )
     args = parser.parse_args()
 
     camera_path = None
@@ -310,7 +408,11 @@ if __name__ == "__main__":
         headless_renderer = Renderer(rendering_gaussians, Camera())
 
     # Define training configuration
-    training_config = TrainingConfig()
+    training_config = TrainingConfig(
+        use_tensorboard=args.tensorboard,
+        tensorboard_log_dir=args.tensorboard_log_dir,
+        log_step_interval=args.log_step_interval,
+    )
 
     # Create a connection for inter-process communication
     parent_conn, child_conn = mp.Pipe()

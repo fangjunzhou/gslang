@@ -16,6 +16,7 @@ dependencies = [
     "pycolmap>=3.11.1",
     "pyvista[full,jupyter]>=0.45.2",
     "tqdm>=4.67.1",
+    "tensorboard>=2.19.0",
 ]
 
 [build-system]
