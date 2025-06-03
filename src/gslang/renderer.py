@@ -328,7 +328,7 @@ class Renderer:
         self.image_arr = jnp.array(image).astype(jnp.float32) / 255.0
 
     def image_loss(self, src: jnp.ndarray, dst: jnp.ndarray):
-        return jnp.mean((dst - src) ** 2)
+        return jnp.mean(jnp.abs(dst - src))
 
     def render(
         self,

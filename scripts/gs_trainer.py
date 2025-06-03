@@ -8,8 +8,9 @@ from PIL import Image
 from tqdm import tqdm
 from enum import Enum
 from pyglm import glm
-import logging
 from datetime import datetime
+from torch.utils.tensorboard import SummaryWriter
+import jax.numpy as jnp
 
 from gslang.app import App
 from gslang.camera import Camera
@@ -17,25 +18,10 @@ from gslang.gaussian import GaussianCloud
 from gslang.data import SFMDataset
 from gslang.renderer import Renderer
 
-try:
-    from torch.utils.tensorboard import SummaryWriter
-
-    HAS_TENSORBOARD = True
-except ImportError:
-    SummaryWriter = None
-    HAS_TENSORBOARD = False
-
-try:
-    import jax.numpy as jnp
-
-    HAS_JAX = True
-except ImportError:
-    HAS_JAX = False
-
 
 def convert_to_scalar(value):
     """Convert JAX arrays, numpy arrays, or tensors to Python scalars for TensorBoard."""
-    if HAS_JAX and hasattr(value, "item"):
+    if hasattr(value, "item"):
         # JAX array
         return float(value.item())
     elif hasattr(value, "item"):
@@ -52,7 +38,7 @@ def convert_to_scalar(value):
 class TrainingConfig:
     """Configuration for the gslang training process."""
 
-    num_epochs: int = 128
+    num_step: int = 7000
     # Learning rate and decay parameters.
     learning_rate: float = 5e-4
     position_lr_factor: float = 1.0
@@ -76,9 +62,9 @@ class TrainingConfig:
     # Step to prune opacity below a threshold.
     opacity_prune_step: int = 100
     # Step to skip pruning opacity after a reset.
-    opacity_prune_skip_step: int = 2000
+    opacity_prune_skip_step: int = 1000
     # Step to reset all opacity below a threshold.
-    reset_opacity_steps: int = 10000
+    reset_opacity_steps: int = 7000
     gaussian_prune_threshold: float = -3
     gaussian_reset_opacity: float = -3.5
     # TensorBoard logging parameters.
@@ -87,18 +73,10 @@ class TrainingConfig:
     log_step_interval: int = 10  # Log every N steps
 
 
-class TrainerStateType(Enum):
-    """Enumeration for the type of trainer state."""
-
-    STEP = "step"
-    EPOCH = "epoch"
-
-
 @dataclass
 class TrainerState:
     """State of the gslang trainer process."""
 
-    type: TrainerStateType = TrainerStateType.STEP
     epoch: int = 0
     step: int = 0
     total_steps: int = 0
@@ -123,7 +101,7 @@ def trainer_worker(
 
     # Initialize TensorBoard writer if enabled
     writer = None
-    if training_config.use_tensorboard and HAS_TENSORBOARD:
+    if training_config.use_tensorboard:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         log_dir = (
             Path(training_config.tensorboard_log_dir)
@@ -131,7 +109,7 @@ def trainer_worker(
         )
         writer = SummaryWriter(str(log_dir))
         print(f"TensorBoard logging enabled. Log directory: {log_dir}")
-    elif training_config.use_tensorboard and not HAS_TENSORBOARD:
+    elif training_config.use_tensorboard:
         print(
             "Warning: TensorBoard requested but not available. Install tensorboard: pip install tensorboard"
         )
@@ -166,7 +144,6 @@ def trainer_worker(
     renderer = Renderer(gaussians, camera)
 
     state = TrainerState(
-        type=TrainerStateType.EPOCH,
         epoch=0,
         step=0,
         total_steps=len(sfm_dataset),
@@ -179,8 +156,8 @@ def trainer_worker(
     # Training loop.
     curr_lr = training_config.learning_rate
     curr_pos_decay = 1
-    optm_step = 0
-    for epoch in range(training_config.num_epochs):
+    curr_step = 0
+    while curr_step < training_config.num_step:
         running_loss = 0.0
         # Shuffle indices for the dataset.
         indices = np.random.permutation(len(sfm_dataset))
@@ -193,10 +170,10 @@ def trainer_worker(
             image = Image.open(image_path)
             # Warmup training.
             if (
-                optm_step
+                curr_step
                 < training_config.warmup_steps * training_config.warmup_levels
             ):
-                curr_level = optm_step // training_config.warmup_steps
+                curr_level = curr_step // training_config.warmup_steps
                 down_sample_factor = 2 ** (
                     training_config.warmup_levels - curr_level
                 )
@@ -233,43 +210,43 @@ def trainer_worker(
                 weight_decay=training_config.weight_decay,
             )
             running_loss += loss
-            if optm_step == 0:
+            if curr_step == 0:
                 renderer.recalcuate_avg_2dgs_size()
 
             # Log to TensorBoard
-            if writer and optm_step % training_config.log_step_interval == 0:
+            if writer and curr_step % training_config.log_step_interval == 0:
                 # Convert JAX arrays to scalars for TensorBoard compatibility
                 writer.add_scalar(
-                    "Loss/Step", convert_to_scalar(loss), optm_step
+                    "Loss/Step", convert_to_scalar(loss), curr_step
                 )
                 writer.add_scalar(
-                    "Learning_Rate/Position_Decay", curr_pos_decay, optm_step
+                    "Learning_Rate/Position_Decay", curr_pos_decay, curr_step
                 )
                 writer.add_scalar(
-                    "Gaussians/Count", renderer.num_gaussians, optm_step
+                    "Gaussians/Count", renderer.num_gaussians, curr_step
                 )
 
             # Optimizer step.
-            optm_step += 1
-            if (optm_step + 1) % training_config.decay_steps == 0:
+            curr_step += 1
+            if (curr_step + 1) % training_config.decay_steps == 0:
                 curr_pos_decay *= training_config.pos_lr_decay_rate
             renderer.optimizer_step()
 
             # Densification step.
-            if (optm_step + 1) % training_config.densify_steps == 0:
+            if (curr_step + 1) % training_config.densify_steps == 0:
                 need_density = True
 
-            if (optm_step + 1) % training_config.reset_opacity_steps == 0:
+            if (curr_step + 1) % training_config.reset_opacity_steps == 0:
                 need_reset_opacity = True
             # Do not reset opacity in the last few epochs.
             if (
-                training_config.num_epochs * len(sfm_dataset) - optm_step
+                training_config.num_step - curr_step
                 < training_config.reset_opacity_steps
             ):
                 need_reset_opacity = False
 
-            if (optm_step + 1) % training_config.opacity_prune_step == 0 and (
-                optm_step + 1
+            if (curr_step + 1) % training_config.opacity_prune_step == 0 and (
+                curr_step + 1
             ) % training_config.reset_opacity_steps > training_config.opacity_prune_skip_step:
                 need_opacity_prune = True
 
@@ -286,8 +263,6 @@ def trainer_worker(
 
             # Send the current state to the parent process.
             state = TrainerState(
-                type=TrainerStateType.STEP,
-                epoch=epoch,
                 step=step,
                 total_steps=len(sfm_dataset),
                 loss=running_loss / (idx + 1),
@@ -298,21 +273,7 @@ def trainer_worker(
         # Average loss for the epoch.
         avg_loss = running_loss / len(sfm_dataset)
 
-        # Log epoch metrics to TensorBoard
-        if writer:
-            # Convert JAX arrays to scalars for TensorBoard compatibility
-            writer.add_scalar("Loss/Epoch", convert_to_scalar(avg_loss), epoch)
-            writer.add_scalar(
-                "Gaussians/Epoch_Count", renderer.num_gaussians, epoch
-            )
-            # Log learning rate factors
-            writer.add_scalar(
-                "Learning_Rate/Position_Decay_Epoch", curr_pos_decay, epoch
-            )
-
         state = TrainerState(
-            type=TrainerStateType.EPOCH,
-            epoch=epoch + 1,
             step=0,
             total_steps=len(sfm_dataset),
             loss=avg_loss,
@@ -433,88 +394,52 @@ if __name__ == "__main__":
     print("Starting gslang trainer...")
     trainer_process.start()
 
-    epoch_pbar = tqdm(
-        total=training_config.num_epochs,
-        desc="Training Epochs",
-        unit="epoch",
-        leave=True,
-    )
     step_pbar = tqdm(
         total=0,
         desc="Training Steps",
         unit="step",
         leave=False,
     )
+    step_pbar.total = training_config.num_step
 
     # Main loop to receive updates from the trainer process
     if not args.headless:
         for _ in app_iter:
             if trainer_process.is_alive() and parent_conn.poll():
                 state: TrainerState = parent_conn.recv()
-                if state.type == TrainerStateType.EPOCH:
-                    # Update epoch progress bar
-                    epoch_pbar.n = state.epoch
-                    epoch_pbar.set_postfix(
-                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
+                # Update epoch progress bar
+                step_pbar.update(1)
+                step_pbar.set_description(f"Loss: {state.loss:.4f}")
+                # Update rendering scene.
+                if (
+                    state.gaussian_arr is not None
+                    and state.gaussian_arr.size > 0
+                ):
+                    app.renderer.sync_gaussians(
+                        state.gaussian_arr, state.num_gaussians
                     )
-                    epoch_pbar.refresh()
-                    step_pbar.reset()
-                    step_pbar.total = state.total_steps
-                    # Update rendering scene.
-                    if (
-                        state.gaussian_arr is not None
-                        and state.gaussian_arr.size > 0
-                    ):
-                        app.renderer.sync_gaussians(
-                            state.gaussian_arr, state.num_gaussians
-                        )
-                    if state.epoch > 0:
-                        app.renderer.to_ply(
-                            args.save_path / f"epoch_{state.epoch:03d}.ply"
-                        )
-                elif state.type == TrainerStateType.STEP:
-                    # Update epoch progress bar
-                    epoch_pbar.n = state.epoch
-                    epoch_pbar.refresh()
-                    # Update step progress bar
-                    step_pbar.update(1)
-                    step_pbar.total = state.total_steps
-                    step_pbar.set_postfix(
-                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
+                if state.epoch > 0:
+                    app.renderer.to_ply(
+                        args.save_path / f"epoch_{state.epoch:03d}.ply"
                     )
-                    step_pbar.refresh()
     else:
         # If running in headless mode, just wait for the trainer to finish
         while trainer_process.is_alive():
             if parent_conn.poll():
                 state: TrainerState = parent_conn.recv()
-                if state.type == TrainerStateType.EPOCH:
-                    epoch_pbar.n = state.epoch
-                    epoch_pbar.set_postfix(
-                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
+                step_pbar.update(1)
+                step_pbar.set_description(f"Loss: {state.loss:.4f}, ")
+                # Save the Gaussian cloud to a file.
+                if (
+                    state.gaussian_arr is not None
+                    and state.gaussian_arr.size > 0
+                ):
+                    headless_renderer.sync_gaussians(
+                        state.gaussian_arr, state.num_gaussians
                     )
-                    epoch_pbar.refresh()
-                    step_pbar.reset()
-                    step_pbar.total = state.total_steps
-                    # Save the Gaussian cloud to a file.
-                    if (
-                        state.gaussian_arr is not None
-                        and state.gaussian_arr.size > 0
-                    ):
-                        headless_renderer.sync_gaussians(
-                            state.gaussian_arr, state.num_gaussians
-                        )
-                        headless_renderer.to_ply(
-                            args.save_path / f"epoch_{state.epoch:03d}.ply"
-                        )
-
-                elif state.type == TrainerStateType.STEP:
-                    step_pbar.update(1)
-                    step_pbar.total = state.total_steps
-                    step_pbar.set_postfix(
-                        loss=f"{state.loss:.4f}", lr=f"{state.lr:.6f}"
+                    headless_renderer.to_ply(
+                        args.save_path / f"epoch_{state.epoch:03d}.ply"
                     )
-                    step_pbar.refresh()
 
     # Kill the trainer process if it's still running
     if trainer_process.is_alive():
