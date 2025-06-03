@@ -143,7 +143,6 @@ def trainer_worker(
     renderer = Renderer(gaussians, camera)
 
     state = TrainerState(
-        epoch=0,
         step=0,
         total_steps=len(sfm_dataset),
         loss=0.0,
