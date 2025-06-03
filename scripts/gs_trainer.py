@@ -436,7 +436,7 @@ if __name__ == "__main__":
                     headless_renderer.sync_gaussians(
                         state.gaussian_arr, state.num_gaussians
                     )
-                    app.renderer.to_ply(
+                    headless_renderer.to_ply(
                         args.save_path / f"epoch_{epoch:03d}.ply"
                     )
                     epoch += 1
