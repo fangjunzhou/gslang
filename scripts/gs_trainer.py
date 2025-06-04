@@ -40,31 +40,31 @@ class TrainingConfig:
 
     num_step: int = 7000
     # Learning rate and decay parameters.
-    learning_rate: float = 1e-3
-    position_lr_factor: float = 1.0
-    pos_lr_decay_rate: float = 0.99
-    rotation_lr_factor: float = 1.0
-    scale_lr_factor: float = 1.0
-    color_lr_factor: float = 1.0
-    opacity_lr_factor: float = 1.0
+    learning_rate: float = 1
+    position_lr_factor: float = 0.00016
+    pos_lr_decay_rate: float = 0.9
+    rotation_lr_factor: float = 0.001
+    scale_lr_factor: float = 0.005
+    color_lr_factor: float = 0.01
+    opacity_lr_factor: float = 0.01
     sh_lr_factor: float = 1.0
-    decay_steps: int = 25
+    decay_steps: int = 100
     # Adam optimizer parameters.
     beta1: float = 0.9
     beta2: float = 0.999
-    weight_decay: float = 1e-4
+    weight_decay: float = 0
     # Warmup parameters.
-    warmup_levels: int = 2
-    warmup_steps: int = 250
+    warmup_levels: int = 0
+    warmup_steps: int = 100
     # Densification parameters.
     densify_steps: int = 100
-    densify_scale: float = 5e-3
+    densify_scale: float = 1
     # Step to prune opacity below a threshold.
     opacity_prune_step: int = 100
     # Step to skip pruning opacity after a reset.
-    opacity_prune_skip_step: int = 1000
+    opacity_prune_skip_step: int = 500
     # Step to reset all opacity below a threshold.
-    reset_opacity_steps: int = 7000
+    reset_opacity_steps: int = 3000
     gaussian_prune_threshold: float = -2
     gaussian_reset_opacity: float = -2.5
     # TensorBoard logging parameters.
@@ -122,10 +122,6 @@ def trainer_worker(
             path,
             scale_factor=-4,
             opacity_factor=-2,
-            add_random_gaussians=True,
-            num_random_gaussians=10000,
-            random_gaussian_scale=-1,
-            random_gaussian_position_range=10,
         )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
@@ -258,6 +254,15 @@ def trainer_worker(
                     gaussian_opacity_prune_threshold=training_config.gaussian_prune_threshold,
                     gaussian_reset_opacity=training_config.gaussian_reset_opacity,
                 )
+                state = TrainerState(
+                    step=step,
+                    total_steps=len(sfm_dataset),
+                    loss=running_loss / (idx + 1),
+                    lr=curr_lr,
+                    num_gaussians=renderer.num_gaussians,
+                    gaussian_arr=renderer.gaussian_3d_buf.to_numpy(),
+                )
+                conn.send(state)
 
             # Send the current state to the parent process.
             state = TrainerState(
