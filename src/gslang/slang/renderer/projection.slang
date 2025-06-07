@@ -8,9 +8,7 @@ inline bool aabb_overlaps_unit_rect(float2 bbMin, float2 bbMax) {
 }
 
 [Differentiable]
-Gaussian2D toGaussian2D(Gaussian3D g3d) {
-  return g_camera.toGaussian2D(g3d);
-}
+Gaussian2D toGaussian2D(Gaussian3D g3d) { return g_camera.toGaussian2D(g3d); }
 
 // Project 3D Gaussians to ray space and set cull flag.
 [shader("compute")]
@@ -52,4 +50,5 @@ void bwdCullProjection(uint tid: SV_DispatchThreadID) {
   bwd_diff(toGaussian2D)(g3d_pair, g2d);
 
   d_gaussian_3d[tid] = d_gaussian_3d[tid] + g3d_pair.d;
+  d_gaussian_3d_pos[tid] += g3d_pair.d.position;
 }

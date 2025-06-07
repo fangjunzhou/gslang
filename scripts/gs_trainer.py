@@ -58,7 +58,7 @@ class TrainingConfig:
     warmup_steps: int = 100
     # Densification parameters.
     densify_steps: int = 100
-    densify_scale: float = 1
+    densify_scale: float = 0.2
     # Step to prune opacity below a threshold.
     opacity_prune_step: int = 100
     # Step to skip pruning opacity after a reset.
@@ -94,10 +94,6 @@ def trainer_worker(
     conn: Connection,
 ):
     """Main function to run the gslang trainer."""
-    # logging.basicConfig(
-    #     level=logging.INFO
-    #
-
     # Initialize TensorBoard writer if enabled
     writer = None
     if training_config.use_tensorboard:
@@ -122,6 +118,10 @@ def trainer_worker(
             path,
             scale_factor=-4,
             opacity_factor=-2,
+            add_random_gaussians=True,
+            num_random_gaussians=10000,
+            random_gaussian_position_range=5,
+            random_gaussian_scale=-2,
         )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
@@ -157,6 +157,7 @@ def trainer_worker(
         indices = np.random.permutation(len(sfm_dataset))
         for step, idx in enumerate(indices):
             need_density = False
+            need_split = False
             need_opacity_prune = False
             need_reset_opacity = False
             camera, image_path = sfm_dataset[idx]
@@ -190,7 +191,7 @@ def trainer_worker(
             renderer.zero_grad()
             loss = renderer.render(image)
             # Backward pass and optimization.
-            renderer.backward(
+            renderer.step(
                 pos_lr=curr_lr
                 * training_config.position_lr_factor
                 * curr_pos_decay,
@@ -204,8 +205,6 @@ def trainer_worker(
                 weight_decay=training_config.weight_decay,
             )
             running_loss += loss
-            if curr_step == 0:
-                renderer.recalcuate_avg_2dgs_size()
 
             # Log to TensorBoard
             if writer and curr_step % training_config.log_step_interval == 0:
@@ -222,13 +221,14 @@ def trainer_worker(
 
             # Optimizer step.
             curr_step += 1
+            renderer.adamw_step += 1
             if (curr_step + 1) % training_config.decay_steps == 0:
                 curr_pos_decay *= training_config.pos_lr_decay_rate
-            renderer.optimizer_step()
 
             # Densification step.
             if (curr_step + 1) % training_config.densify_steps == 0:
                 need_density = True
+                need_split = not need_split
 
             if (curr_step + 1) % training_config.reset_opacity_steps == 0:
                 need_reset_opacity = True
@@ -253,6 +253,7 @@ def trainer_worker(
                     use_reset_opacity=need_reset_opacity,
                     gaussian_opacity_prune_threshold=training_config.gaussian_prune_threshold,
                     gaussian_reset_opacity=training_config.gaussian_reset_opacity,
+                    split=need_split,
                 )
                 state = TrainerState(
                     step=step,

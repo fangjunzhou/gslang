@@ -39,7 +39,6 @@ class Renderer:
     ker_duplicate_gs: spy.ComputeKernel
     ker_rasterize: spy.ComputeKernel
     image_arr: jnp.ndarray = jnp.array([])
-    avg_gaussian_2d_size: jnp.ndarray = jnp.array([])
 
     def __init__(self, gaussians: GaussianCloud, camera: Camera) -> None:
         """Constructor for the Rasterizer class.
@@ -226,6 +225,12 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
+        self.gaussian_3d_grad_pos_buf = device.create_buffer(
+            element_count=len(gaussians),
+            struct_type=self.program.reflection.d_gaussian_3d_pos,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
         self.gaussian_2d_buf = device.create_buffer(
             element_count=len(gaussians),
             struct_type=self.program.reflection.g_gaussian_2d,
@@ -250,7 +255,7 @@ class Renderer:
         self.adamw_step = 1
 
         self.loss_grad = jax.value_and_grad(
-            lambda src, dst: self.image_loss(src, dst, fast_mode=True)
+            lambda src, dst: self.image_loss(src, dst)
         )
 
     def set_camera(self, camera: Camera):
@@ -308,254 +313,18 @@ class Renderer:
         self.num_gaussians = num_gaussians
 
     def zero_grad(self):
-        # gaussian_2d_sorted_grad_buf.copy_from_numpy(
-        #     np.zeros((gaussian_2d_sorted_grad_buf.size,), dtype=np.uint8))
-        # a_gaussian_2d_sorted_grad_buf.copy_from_numpy(
-        #     np.zeros((a_gaussian_2d_sorted_grad_buf.size,), dtype=np.uint8))
-
-        # gaussian_2d_culled_grad_buf.copy_from_numpy(
-        #     np.zeros((gaussian_2d_culled_grad_buf.size,), dtype=np.uint8))
-        # a_guassian_2d_culled_grad_buf.copy_from_numpy(
-        #     np.zeros((a_guassian_2d_culled_grad_buf.size,), dtype=np.uint8))
-
         self.gaussian_3d_grad_buf.copy_from_numpy(
             np.zeros((self.gaussian_3d_grad_buf.size,), dtype=np.uint8)
         )
-
-    def set_gt_image(self, image: Image.Image) -> None:
-        """Set the ground truth image for the renderer.
-
-        :param image: The ground truth image as a PIL Image.
-        """
-        self.image_arr = jnp.array(image).astype(jnp.float32) / 255.0
 
     def image_loss(
         self,
         src: jnp.ndarray,
         dst: jnp.ndarray,
-        lambda_ssim: float = 0.2,
-        fast_mode: bool = True,
     ):
-        """
-        Combined L1 and structural loss as described in the 3DGS paper.
-        L = (1 - λ)L1 + λL_structural
-
-        Args:
-            src: Source image (rendered)
-            dst: Destination image (ground truth)
-            lambda_ssim: Weight for structural term (default: 0.2 as per 3DGS paper)
-            fast_mode: If True, use faster gradient-based loss; if False, use full SSIM
-        """
         # L1 loss
         l1_loss = jnp.mean(jnp.abs(dst - src))
-
-        # Structural loss component
-        if lambda_ssim > 0:
-            if fast_mode:
-                # Ultra-fast gradient-based structural loss
-                structural_loss = self._compute_gradient_loss(src, dst)
-            else:
-                # Full SSIM computation (slower but more accurate)
-                ssim_value = self._compute_ssim_fast(src, dst)
-                structural_loss = 1.0 - ssim_value
-
-            # Combined loss: L = (1 - λ)L1 + λL_structural
-            total_loss = (
-                1.0 - lambda_ssim
-            ) * l1_loss + lambda_ssim * structural_loss
-        else:
-            # Pure L1 loss for maximum speed
-            total_loss = l1_loss
-
-        return total_loss
-
-    # Performance optimization notes for image_loss:
-    #
-    # 1. Default fast_mode=True uses gradient-based structural loss:
-    #    - ~2.2x faster than SSIM
-    #    - Still captures edge/structural information
-    #    - Good balance of speed and quality
-    #
-    # 2. Set fast_mode=False for full SSIM computation:
-    #    - More accurate structural similarity
-    #    - Uses box filter instead of Gaussian (faster)
-    #    - Smaller window size (5x5 vs 11x11) for speed
-    #
-    # 3. Set lambda_ssim=0 for pure L1 loss:
-    #    - Maximum speed (~2.5x faster than SSIM)
-    #    - Use for initial training phases or when speed is critical
-    #
-    # Usage examples:
-    # - Fast training: image_loss(src, dst, lambda_ssim=0.2, fast_mode=True)  # Default
-    # - High quality: image_loss(src, dst, lambda_ssim=0.2, fast_mode=False)
-    # - Maximum speed: image_loss(src, dst, lambda_ssim=0.0)
-
-    def _compute_ssim_fast(
-        self,
-        img1: jnp.ndarray,
-        img2: jnp.ndarray,
-        window_size: int = 5,  # Very small window for speed
-        k1: float = 0.01,
-        k2: float = 0.03,
-    ) -> jnp.ndarray:
-        """
-        Very fast SSIM approximation using small windows and efficient operations.
-        """
-        # Ensure images are in range [0, 1]
-        img1 = jnp.clip(img1, 0.0, 1.0)
-        img2 = jnp.clip(img2, 0.0, 1.0)
-
-        # Convert to grayscale if images are RGB
-        if len(img1.shape) == 3 and img1.shape[-1] == 3:
-            # RGB to grayscale conversion weights
-            rgb_weights = jnp.array([0.299, 0.587, 0.114])
-            img1 = jnp.sum(img1 * rgb_weights, axis=-1)
-            img2 = jnp.sum(img2 * rgb_weights, axis=-1)
-
-        # SSIM constants
-        c1 = k1**2
-        c2 = k2**2
-
-        # Use simple box filter instead of Gaussian for maximum speed
-        # This is much faster and still provides reasonable structural information
-        kernel_size = window_size
-        box_kernel = jnp.ones((kernel_size, kernel_size)) / (kernel_size**2)
-
-        # Use JAX's efficient convolution
-        mu1 = jax.scipy.signal.convolve2d(img1, box_kernel, mode="valid")
-        mu2 = jax.scipy.signal.convolve2d(img2, box_kernel, mode="valid")
-
-        mu1_sq = mu1**2
-        mu2_sq = mu2**2
-        mu1_mu2 = mu1 * mu2
-
-        # Simplified variance computation
-        sigma1_sq = (
-            jax.scipy.signal.convolve2d(img1**2, box_kernel, mode="valid")
-            - mu1_sq
-        )
-        sigma2_sq = (
-            jax.scipy.signal.convolve2d(img2**2, box_kernel, mode="valid")
-            - mu2_sq
-        )
-        sigma12 = (
-            jax.scipy.signal.convolve2d(img1 * img2, box_kernel, mode="valid")
-            - mu1_mu2
-        )
-
-        # SSIM formula
-        numerator = (2 * mu1_mu2 + c1) * (2 * sigma12 + c2)
-        denominator = (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2)
-
-        ssim_map = numerator / (
-            denominator + 1e-8
-        )  # Add small epsilon for stability
-
-        return jnp.mean(ssim_map)
-
-    def _compute_ssim(
-        self,
-        img1: jnp.ndarray,
-        img2: jnp.ndarray,
-        window_size: int = 7,  # Reduced from 11 for speed
-        k1: float = 0.01,
-        k2: float = 0.03,
-    ) -> jnp.ndarray:
-        """
-        Fast SSIM computation using optimized operations.
-
-        Args:
-            img1: First image
-            img2: Second image
-            window_size: Size of the sliding window (default: 7 for speed)
-            k1, k2: SSIM constants (default: 0.01, 0.03)
-        """
-        # Ensure images are in range [0, 1]
-        img1 = jnp.clip(img1, 0.0, 1.0)
-        img2 = jnp.clip(img2, 0.0, 1.0)
-
-        # Convert to grayscale if images are RGB
-        if len(img1.shape) == 3 and img1.shape[-1] == 3:
-            # RGB to grayscale conversion weights
-            rgb_weights = jnp.array([0.299, 0.587, 0.114])
-            img1 = jnp.sum(img1 * rgb_weights, axis=-1)
-            img2 = jnp.sum(img2 * rgb_weights, axis=-1)
-
-        # SSIM constants
-        c1 = (k1) ** 2
-        c2 = (k2) ** 2
-
-        # Create smaller Gaussian window for speed
-        window = self._gaussian_window(window_size, 1.5)
-
-        # Use JAX's efficient convolution with lax for better performance
-        from jax import lax
-
-        # Prepare images for convolution (add batch and channel dimensions)
-        img1_4d = img1[None, None, :, :]
-        img2_4d = img2[None, None, :, :]
-        window_4d = window[None, None, :, :]
-
-        # Compute all required convolutions efficiently
-        mu1 = lax.conv_general_dilated(
-            img1_4d, window_4d, window_strides=[1, 1], padding="VALID"
-        )[0, 0]
-        mu2 = lax.conv_general_dilated(
-            img2_4d, window_4d, window_strides=[1, 1], padding="VALID"
-        )[0, 0]
-
-        # Pre-compute terms for variance calculations
-        mu1_sq = mu1**2
-        mu2_sq = mu2**2
-        mu1_mu2 = mu1 * mu2
-
-        # Efficient computation of squared terms
-        img1_sq_4d = (img1**2)[None, None, :, :]
-        img2_sq_4d = (img2**2)[None, None, :, :]
-        img12_4d = (img1 * img2)[None, None, :, :]
-
-        sigma1_sq = (
-            lax.conv_general_dilated(
-                img1_sq_4d, window_4d, window_strides=[1, 1], padding="VALID"
-            )[0, 0]
-            - mu1_sq
-        )
-
-        sigma2_sq = (
-            lax.conv_general_dilated(
-                img2_sq_4d, window_4d, window_strides=[1, 1], padding="VALID"
-            )[0, 0]
-            - mu2_sq
-        )
-
-        sigma12 = (
-            lax.conv_general_dilated(
-                img12_4d, window_4d, window_strides=[1, 1], padding="VALID"
-            )[0, 0]
-            - mu1_mu2
-        )
-
-        # SSIM formula (vectorized)
-        numerator = (2 * mu1_mu2 + c1) * (2 * sigma12 + c2)
-        denominator = (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2)
-
-        ssim_map = numerator / denominator
-
-        # Return mean SSIM
-        return jnp.mean(ssim_map)
-
-    def _gaussian_window(self, size: int, sigma: float) -> jnp.ndarray:
-        """Create a 2D Gaussian window efficiently."""
-        # Use linspace for better numerical stability
-        coords = jnp.linspace(-(size // 2), size // 2, size, dtype=jnp.float32)
-
-        # Compute 1D Gaussian more efficiently
-        g = jnp.exp(-0.5 * (coords / sigma) ** 2)
-        g = g / jnp.sum(g)
-
-        # Create 2D window using outer product
-        window = jnp.outer(g, g)
-        return window
+        return l1_loss
 
     def render(
         self,
@@ -567,6 +336,7 @@ class Renderer:
         overConstructionShrinkScale: float = 1.6,
         gaussian_opacity_prune_threshold: float = -3,
         gaussian_reset_opacity: float = -4,
+        split: bool = True,
     ) -> float:
         """Render the Gaussian points to the render target."""
         # Get the camera parameters.
@@ -724,226 +494,26 @@ class Renderer:
         loss = 0.0
 
         if gt_image is not None:
-            self.set_gt_image(gt_image)
-
-            if self.image_arr.size == 0:
-                raise ValueError(
-                    "Ground truth image not set for gradient descent."
-                )
-            a_gaussian_2d_sorted_grad_buf = device.create_buffer(
-                element_count=table_size,
-                struct_type=self.program.reflection.d_a_gaussian_2d_sorted,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
+            loss = self.backward(
+                gt_image,
+                inside_flag_buf,
+                inside_offset_buf,
+                num_viewing,
+                table_size,
+                gaussian_table_buf,
+                hist_buf,
+                gaussian_2d_sorted_buf,
+                hist_offset_buf,
             )
 
-            a_gaussian_2d_culled_grad_buf = device.create_buffer(
-                element_count=num_viewing,
-                struct_type=self.program.reflection.d_a_gaussian_2d_culled,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-
-            gaussian_2d_culled_grad_buf = device.create_buffer(
-                element_count=num_viewing,
-                struct_type=self.program.reflection.d_gaussian_2d_culled,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-
-            raw_image = jnp.array(self.render_target.to_numpy()[:, :, :3])
-            loss, render_target_grad = self.loss_grad(raw_image, self.image_arr)
-
-            logger.debug(f"Loss: {loss}")
-
-            rg_shape = render_target_grad.shape
-            render_target_grad = jnp.concatenate(
-                (render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))),
-                axis=-1,
-            )
-
-            self.grad_texture.copy_from_numpy(render_target_grad)
-
-            self.ker_bwd_rasterize.dispatch(
-                thread_count=[
-                    self.camera.sensor_size.x,
-                    self.camera.sensor_size.y,
-                    1,
-                ],
-                vars={
-                    "g_camera": self.camera.to_slang(),
-                    "g_tile_hist": hist_buf,
-                    "g_tile_offs": hist_offset_buf,
-                    "g_gaussian_2d_sorted": gaussian_2d_sorted_buf,
-                    "g_render_target": self.render_target,
-                    "d_render_target": self.grad_texture,
-                    "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
-                    "g_num_rendered_gaussians": self.num_depth_buf,
-                },
-            )
-
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                arr = (
-                    a_gaussian_2d_sorted_grad_buf.to_numpy()
-                    .view(np.float32)
-                    .reshape(table_size, -1)
-                )
-                logger.debug(
-                    f"Gaussian 2D Sorted Gradients Max: {np.max(arr, axis=0)}"
-                )
-                logger.debug(
-                    f"Gaussian 2D Sorted Gradients Min: {np.min(arr, axis=0)}"
-                )
-
-            # bwd duplicate
-            self.ker_bwd_duplicate.dispatch(
-                thread_count=[table_size, 1, 1],
-                vars={
-                    "g_gaussian_table": gaussian_table_buf,
-                    "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
-                    "d_a_gaussian_2d_culled": a_gaussian_2d_culled_grad_buf,
-                },
-            )
-
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                arr = (
-                    a_gaussian_2d_culled_grad_buf.to_numpy()
-                    .view(np.float32)
-                    .reshape(num_viewing, -1)
-                )
-                logger.debug(
-                    f"Gaussian 2D Culled Gradients Max: {np.max(arr, axis=0)}"
-                )
-                logger.debug(
-                    f"Gaussian 2D Culled Gradients Min: {np.min(arr, axis=0)}"
-                )
-
-            # Extract the gradients for the culled Gaussian 2D points.
-            self.ker_extract_culled_gaussian.dispatch(
-                thread_count=[num_viewing, 1, 1],
-                vars={
-                    "d_a_gaussian_2d_culled": a_gaussian_2d_culled_grad_buf,
-                    "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
-                },
-            )
-
-            # bwd cull and projection
-            self.ker_bwd_cull_proj.dispatch(
-                thread_count=[self.num_gaussians, 1, 1],
-                vars={
-                    "g_camera": self.camera.to_slang(),
-                    "g_gaussian_3d": self.gaussian_3d_buf,
-                    "g_inside_flag": inside_flag_buf,
-                    "g_inside_offset": inside_offset_buf,
-                    "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
-                    "d_gaussian_3d": self.gaussian_3d_grad_buf,
-                },
-            )
-
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                arr = (
-                    self.gaussian_3d_grad_buf.to_numpy()
-                    .view(np.float32)
-                    .reshape(self.num_gaussians, -1, 4)[:, :8, :]
-                )
-                logger.debug(
-                    f"Gaussian 3D Gradients Max: {np.max(arr, axis=0)}"
-                )
-                logger.debug(
-                    f"Gaussian 3D Gradients Min: {np.min(arr, axis=0)}"
-                )
-                arr = (
-                    self.gaussian_3d_buf.to_numpy()
-                    .view(np.float32)
-                    .reshape(self.num_gaussians, -1, 4)[:, :8, :]
-                )
-                logger.debug(f"Gaussian 3D Points Max: {np.max(arr, axis=0)}")
-                logger.debug(f"Gaussian 3D Points Min: {np.min(arr, axis=0)}")
-
-        def densify():
-            """Densify the Gaussian points."""
-            if self.avg_gaussian_2d_size.size == 0:
-                self.recalcuate_avg_2dgs_size()
-
-            duplicate_flag_buf = device.create_buffer(
-                element_count=self.num_gaussians,
-                struct_type=self.program.reflection.g_duplicate_flag,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-
-            # Mark duplicated Gaussian points.
-            self.ker_mark_duplicated.dispatch(
-                thread_count=[self.num_gaussians, 1, 1],
-                threashold=0.0002,
-                avgScale=self.avg_gaussian_2d_size,
-                vars={
-                    "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
-                    "g_inside_flag": inside_flag_buf,
-                    "g_inside_offset": inside_offset_buf,
-                    "g_duplicate_flag": duplicate_flag_buf,
-                },
-            )
-
-            # Prefix sum the duplicate flag to get the number of duplicated points.
-            duplicate_flag_prefix_buf = prefix_sum(duplicate_flag_buf)
-            # Get the number of new Gaussian points.
-            num_new_gaussians = (
-                duplicate_flag_prefix_buf.to_numpy().view(np.uint32)[-1].item()
-            )
-
-            logger.info(
-                f"Number of new Gaussian points to be added: {num_new_gaussians}"
-            )
-            if num_new_gaussians == 0:
-                logger.debug("No new Gaussian points to be added.")
-                return
-
-            # Old gaussian buffer.
-            old_gaussian_3d_buf = self.gaussian_3d_buf
-            # Create a new buffer for the Gaussian points.
-            self.gaussian_3d_buf = device.create_buffer(
-                element_count=self.num_gaussians + num_new_gaussians,
-                struct_type=self.program.reflection.g_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            # Densify the Gaussian points.
-            self.ker_densify.dispatch(
-                thread_count=[self.num_gaussians, 1, 1],
-                numSrc=self.num_gaussians,
-                underConstructionGradScale=densify_scale,
+        if use_densify:
+            self.densify(
+                inside_flag_buf,
+                inside_offset_buf,
+                densify_scale=densify_scale,
                 overConstructionShrinkScale=overConstructionShrinkScale,
-                overConstructionGradScale=densify_scale,
-                vars={
-                    "g_gaussian_3d": self.gaussian_3d_buf,
-                    "g_gaussian_3d_src": old_gaussian_3d_buf,
-                    "g_duplicate_flag": duplicate_flag_buf,
-                    "g_duplicate_prefix": duplicate_flag_prefix_buf,
-                    "d_gaussian_3d": self.gaussian_3d_grad_buf,
-                },
+                split=split,
             )
-            # Create a new buffer for the Gaussian gradients.
-            self.gaussian_3d_grad_buf = device.create_buffer(
-                element_count=self.num_gaussians + num_new_gaussians,
-                struct_type=self.program.reflection.d_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            self.m_buf = device.create_buffer(
-                element_count=self.num_gaussians + num_new_gaussians,
-                struct_type=self.program.reflection.m_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            self.v_buf = device.create_buffer(
-                element_count=self.num_gaussians + num_new_gaussians,
-                struct_type=self.program.reflection.v_gaussian_3d,
-                usage=spy.BufferUsage.shader_resource
-                | spy.BufferUsage.unordered_access,
-            )
-            # Update the number of Gaussian points.
-            self.num_gaussians += num_new_gaussians
 
         if use_opacity_prune:
             self.gaussian_removal_by_opacity(
@@ -953,11 +523,247 @@ class Renderer:
         if use_reset_opacity:
             self.set_all_opacity(gaussian_reset_opacity)
 
-        if use_densify:
-            self.recalcuate_avg_2dgs_size()
-            densify()
-
         return loss
+
+    def backward(
+        self,
+        gt_image: Image.Image,
+        inside_flag_buf: spy.Buffer,
+        inside_offset_buf: spy.Buffer,
+        num_viewing: int,
+        table_size: int,
+        gaussian_table_buf: spy.Buffer,
+        hist_buf: spy.Buffer,
+        gaussian_2d_sorted_buf: spy.Buffer,
+        hist_offset_buf: spy.Buffer,
+    ):
+        self.image_arr = jnp.array(gt_image).astype(jnp.float32) / 255.0
+
+        if self.image_arr.size == 0:
+            raise ValueError("Ground truth image not set for gradient descent.")
+        a_gaussian_2d_sorted_grad_buf = device.create_buffer(
+            element_count=table_size,
+            struct_type=self.program.reflection.d_a_gaussian_2d_sorted,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        a_gaussian_2d_culled_grad_buf = device.create_buffer(
+            element_count=num_viewing,
+            struct_type=self.program.reflection.d_a_gaussian_2d_culled,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        gaussian_2d_culled_grad_buf = device.create_buffer(
+            element_count=num_viewing,
+            struct_type=self.program.reflection.d_gaussian_2d_culled,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        raw_image = jnp.array(self.render_target.to_numpy()[:, :, :3])
+        loss, render_target_grad = self.loss_grad(raw_image, self.image_arr)
+
+        logger.debug(f"Loss: {loss}")
+
+        rg_shape = render_target_grad.shape
+        render_target_grad = jnp.concatenate(
+            (render_target_grad, jnp.zeros((rg_shape[0], rg_shape[1], 1))),
+            axis=-1,
+        )
+
+        self.grad_texture.copy_from_numpy(render_target_grad)
+
+        self.ker_bwd_rasterize.dispatch(
+            thread_count=[
+                self.camera.sensor_size.x,
+                self.camera.sensor_size.y,
+                1,
+            ],
+            vars={
+                "g_camera": self.camera.to_slang(),
+                "g_tile_hist": hist_buf,
+                "g_tile_offs": hist_offset_buf,
+                "g_gaussian_2d_sorted": gaussian_2d_sorted_buf,
+                "g_render_target": self.render_target,
+                "d_render_target": self.grad_texture,
+                "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
+                "g_num_rendered_gaussians": self.num_depth_buf,
+            },
+        )
+
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            arr = (
+                a_gaussian_2d_sorted_grad_buf.to_numpy()
+                .view(np.float32)
+                .reshape(table_size, -1)
+            )
+            logger.debug(
+                f"Gaussian 2D Sorted Gradients Max: {np.max(arr, axis=0)}"
+            )
+            logger.debug(
+                f"Gaussian 2D Sorted Gradients Min: {np.min(arr, axis=0)}"
+            )
+
+            # bwd duplicate
+        self.ker_bwd_duplicate.dispatch(
+            thread_count=[table_size, 1, 1],
+            vars={
+                "g_gaussian_table": gaussian_table_buf,
+                "d_a_gaussian_2d_sorted": a_gaussian_2d_sorted_grad_buf,
+                "d_a_gaussian_2d_culled": a_gaussian_2d_culled_grad_buf,
+            },
+        )
+
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            arr = (
+                a_gaussian_2d_culled_grad_buf.to_numpy()
+                .view(np.float32)
+                .reshape(num_viewing, -1)
+            )
+            logger.debug(
+                f"Gaussian 2D Culled Gradients Max: {np.max(arr, axis=0)}"
+            )
+            logger.debug(
+                f"Gaussian 2D Culled Gradients Min: {np.min(arr, axis=0)}"
+            )
+
+            # Extract the gradients for the culled Gaussian 2D points.
+        self.ker_extract_culled_gaussian.dispatch(
+            thread_count=[num_viewing, 1, 1],
+            vars={
+                "d_a_gaussian_2d_culled": a_gaussian_2d_culled_grad_buf,
+                "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
+            },
+        )
+
+        # bwd cull and projection
+        self.ker_bwd_cull_proj.dispatch(
+            thread_count=[self.num_gaussians, 1, 1],
+            vars={
+                "g_camera": self.camera.to_slang(),
+                "g_gaussian_3d": self.gaussian_3d_buf,
+                "g_inside_flag": inside_flag_buf,
+                "g_inside_offset": inside_offset_buf,
+                "d_gaussian_2d_culled": gaussian_2d_culled_grad_buf,
+                "d_gaussian_3d": self.gaussian_3d_grad_buf,
+                "d_gaussian_3d_pos": self.gaussian_3d_grad_pos_buf,
+            },
+        )
+
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            arr = (
+                self.gaussian_3d_grad_buf.to_numpy()
+                .view(np.float32)
+                .reshape(self.num_gaussians, -1, 4)[:, :8, :]
+            )
+            logger.debug(f"Gaussian 3D Gradients Max: {np.max(arr, axis=0)}")
+            logger.debug(f"Gaussian 3D Gradients Min: {np.min(arr, axis=0)}")
+            arr = (
+                self.gaussian_3d_buf.to_numpy()
+                .view(np.float32)
+                .reshape(self.num_gaussians, -1, 4)[:, :8, :]
+            )
+            logger.debug(f"Gaussian 3D Points Max: {np.max(arr, axis=0)}")
+            logger.debug(f"Gaussian 3D Points Min: {np.min(arr, axis=0)}")
+        return loss
+
+    def densify(
+        self,
+        inside_flag_buf: spy.Buffer,
+        inside_offset_buf: spy.Buffer,
+        densify_scale: float = 1.0,
+        overConstructionShrinkScale: float = 1.6,
+        split: bool = True,
+    ):
+        avg_scale = self.calculate_avg_3dgs_size()
+        """Densify the Gaussian points."""
+        duplicate_flag_buf = device.create_buffer(
+            element_count=self.num_gaussians,
+            struct_type=self.program.reflection.g_duplicate_flag,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+
+        # Mark duplicated Gaussian points.
+        self.ker_mark_duplicated.dispatch(
+            thread_count=[self.num_gaussians, 1, 1],
+            threashold=0.002,
+            vars={
+                "d_gaussian_3d_pos": self.gaussian_3d_grad_pos_buf,
+                "g_inside_flag": inside_flag_buf,
+                "g_inside_offset": inside_offset_buf,
+                "g_duplicate_flag": duplicate_flag_buf,
+            },
+        )
+
+        # Prefix sum the duplicate flag to get the number of duplicated points.
+        duplicate_flag_prefix_buf = prefix_sum(duplicate_flag_buf)
+        # Get the number of new Gaussian points.
+        num_new_gaussians = (
+            duplicate_flag_prefix_buf.to_numpy().view(np.uint32)[-1].item()
+        )
+
+        logger.info(
+            f"Number of new Gaussian points to be added: {num_new_gaussians}"
+        )
+        if num_new_gaussians == 0:
+            logger.debug("No new Gaussian points to be added.")
+            return
+
+        # Old gaussian buffer.
+        old_gaussian_3d_buf = self.gaussian_3d_buf
+        # Create a new buffer for the Gaussian points.
+        self.gaussian_3d_buf = device.create_buffer(
+            element_count=self.num_gaussians + num_new_gaussians,
+            struct_type=self.program.reflection.g_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        # Densify the Gaussian points.
+        self.ker_densify.dispatch(
+            thread_count=[self.num_gaussians, 1, 1],
+            numSrc=self.num_gaussians,
+            underConstructionGradScale=densify_scale,
+            overConstructionGradScale=densify_scale,
+            overConstructionShrinkScale=overConstructionShrinkScale,
+            split=split,
+            vars={
+                "g_gaussian_3d": self.gaussian_3d_buf,
+                "g_gaussian_3d_src": old_gaussian_3d_buf,
+                "g_duplicate_flag": duplicate_flag_buf,
+                "g_duplicate_prefix": duplicate_flag_prefix_buf,
+                "d_gaussian_3d_pos": self.gaussian_3d_grad_pos_buf,
+            },
+        )
+        # Create a new buffer for the Gaussian gradients.
+        self.gaussian_3d_grad_buf = device.create_buffer(
+            element_count=self.num_gaussians + num_new_gaussians,
+            struct_type=self.program.reflection.d_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        self.gaussian_3d_grad_pos_buf = device.create_buffer(
+            element_count=self.num_gaussians + num_new_gaussians,
+            struct_type=self.program.reflection.d_gaussian_3d_pos,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        self.m_buf = device.create_buffer(
+            element_count=self.num_gaussians + num_new_gaussians,
+            struct_type=self.program.reflection.m_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        self.v_buf = device.create_buffer(
+            element_count=self.num_gaussians + num_new_gaussians,
+            struct_type=self.program.reflection.v_gaussian_3d,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
+        # Update the number of Gaussian points.
+        self.num_gaussians += num_new_gaussians
 
     def gaussian_removal_by_opacity(
         self, gaussian_opacity_prune_threshold: float
@@ -1008,6 +814,12 @@ class Renderer:
             usage=spy.BufferUsage.shader_resource
             | spy.BufferUsage.unordered_access,
         )
+        new_gaussian_3d_pos_buf = device.create_buffer(
+            element_count=num_keep,
+            struct_type=self.program.reflection.d_gaussian_3d_pos,
+            usage=spy.BufferUsage.shader_resource
+            | spy.BufferUsage.unordered_access,
+        )
         new_m_buf = device.create_buffer(
             element_count=num_keep,
             struct_type=self.program.reflection.m_gaussian_3d,
@@ -1044,6 +856,7 @@ class Renderer:
         self.gaussian_3d_buf = new_gaussian_3d_buf
         self.gaussian_2d_buf = new_gaussian_2d_buf
         self.gaussian_3d_grad_buf = new_d_gaussian_3d_buf
+        self.gaussian_3d_grad_pos_buf = new_gaussian_3d_pos_buf
         self.m_buf = new_m_buf
         self.v_buf = new_v_buf
         self.num_gaussians = num_keep
@@ -1065,27 +878,24 @@ class Renderer:
     def optimizer_set_step(self, step: int):
         self.adamw_step = step
 
-    def optimizer_step(self) -> None:
-        self.adamw_step += 1
-
-    def recalcuate_avg_2dgs_size(self):
+    def calculate_avg_3dgs_size(self):
         """Recalculate the average size of the Gaussian points."""
         gaussian_arr = (
-            self.gaussian_2d_buf.to_numpy()
+            self.gaussian_3d_buf.to_numpy()
             .view(np.float32)
             .reshape(self.num_gaussians, -1)
         )
         if device.info.type == spy.DeviceType.metal:
-            covariance = gaussian_arr[:, 4:8].reshape(-1, 2, 2)
+            scale = np.exp(gaussian_arr[:, 9:12])
         else:
-            covariance = gaussian_arr[:, 3:7].reshape(-1, 2, 2)
+            scale = np.exp(gaussian_arr[:, 8:11])
         # Use matrix norm as the average size.
-        avg_size = np.mean(np.linalg.norm(covariance, axis=(1, 2)), axis=0)
+        avg_size = np.mean(scale)
         logger.info(f"Average Gaussian size: {avg_size}")
 
-        self.avg_gaussian_2d_size = jnp.array(avg_size, dtype=jnp.float32)
+        return avg_size
 
-    def backward(
+    def step(
         self,
         pos_lr: float = 1e-3,
         rot_lr: float = 1e-3,
@@ -1153,36 +963,3 @@ class Renderer:
             )
         gaussians.num_gaussians = self.num_gaussians
         gaussians.save_to_ply(path)
-
-    def _compute_gradient_loss(
-        self, img1: jnp.ndarray, img2: jnp.ndarray
-    ) -> jnp.ndarray:
-        """
-        Ultra-fast gradient-based structural loss as an alternative to SSIM.
-        This captures edge information much faster than full SSIM computation.
-        """
-        # Ensure images are in range [0, 1]
-        img1 = jnp.clip(img1, 0.0, 1.0)
-        img2 = jnp.clip(img2, 0.0, 1.0)
-
-        # Convert to grayscale if images are RGB
-        if len(img1.shape) == 3 and img1.shape[-1] == 3:
-            rgb_weights = jnp.array([0.299, 0.587, 0.114])
-            img1 = jnp.sum(img1 * rgb_weights, axis=-1)
-            img2 = jnp.sum(img2 * rgb_weights, axis=-1)
-
-        # Compute gradients using simple differences (much faster than convolution)
-        grad1_x = jnp.diff(img1, axis=1)
-        grad1_y = jnp.diff(img1, axis=0)
-        grad2_x = jnp.diff(img2, axis=1)
-        grad2_y = jnp.diff(img2, axis=0)
-
-        # Gradient magnitude
-        grad1_mag = jnp.sqrt(grad1_x[:-1, :] ** 2 + grad1_y[:, :-1] ** 2)
-        grad2_mag = jnp.sqrt(grad2_x[:-1, :] ** 2 + grad2_y[:, :-1] ** 2)
-
-        # Gradient similarity (similar to SSIM but much faster)
-        grad_diff = jnp.abs(grad1_mag - grad2_mag)
-        gradient_loss = jnp.mean(grad_diff)
-
-        return gradient_loss

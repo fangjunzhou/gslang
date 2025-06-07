@@ -46,6 +46,7 @@ RWStructuredBuffer<Gaussian3D> m_gaussian_3d;
 RWStructuredBuffer<Gaussian3D> v_gaussian_3d;
 
 // Adaptive density control.
+RWStructuredBuffer<float3> d_gaussian_3d_pos;
 RWStructuredBuffer<uint> g_duplicate_flag;
 RWStructuredBuffer<uint> g_duplicate_prefix;
 RWStructuredBuffer<Gaussian3D> g_gaussian_3d_src;
