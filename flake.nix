@@ -3,12 +3,12 @@
 
   inputs =
     {
+      self.submodules = true;
       nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
       nixpkgs-cuda.url = "github:nixos/nixpkgs/nixos-24.11";
       flake-utils.url = "github:numtide/flake-utils";
       slangpy-src = {
-        url = "git+file:./external/slangpy?submodules=1";
-        flake = false;
+        url = ./external/slangpy;
       };
     };
 

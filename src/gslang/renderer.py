@@ -726,7 +726,8 @@ class Renderer:
             thread_count=[self.num_gaussians, 1, 1],
             numSrc=self.num_gaussians,
             underConstructionGradScale=densify_scale,
-            overConstructionGradScale=densify_scale,
+            overConstructionGradScale=densify_scale
+            * overConstructionShrinkScale,
             overConstructionShrinkScale=overConstructionShrinkScale,
             split=split,
             vars={

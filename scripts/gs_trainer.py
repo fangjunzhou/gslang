@@ -47,18 +47,18 @@ class TrainingConfig:
     scale_lr_factor: float = 0.005
     color_lr_factor: float = 0.01
     opacity_lr_factor: float = 0.01
-    sh_lr_factor: float = 1.0
+    sh_lr_factor: float = 0.001
     decay_steps: int = 100
     # Adam optimizer parameters.
     beta1: float = 0.9
     beta2: float = 0.999
-    weight_decay: float = 0
+    weight_decay: float = 1e-4
     # Warmup parameters.
     warmup_levels: int = 0
     warmup_steps: int = 100
     # Densification parameters.
     densify_steps: int = 100
-    densify_scale: float = 0.2
+    densify_scale: float = 0.25
     # Step to prune opacity below a threshold.
     opacity_prune_step: int = 100
     # Step to skip pruning opacity after a reset.
@@ -119,10 +119,17 @@ def trainer_worker(
             scale_factor=-4,
             opacity_factor=-2,
             add_random_gaussians=True,
-            num_random_gaussians=10000,
-            random_gaussian_position_range=5,
+            num_random_gaussians=100000,
+            random_gaussian_position_range=20,
             random_gaussian_scale=-2,
         )
+        # gaussians.randomize(
+        #     size=100000,
+        #     position_var=20,
+        #     scale_var=0.1,
+        #     scale_offst=-2,
+        #     opacity_factor=-2,
+        # )
         sfm_dataset = SFMDataset()
         sfm_dataset.load_from_colmap(path, images_path)
     else:
@@ -151,13 +158,13 @@ def trainer_worker(
     curr_lr = training_config.learning_rate
     curr_pos_decay = 1
     curr_step = 0
+    need_split = False
     while curr_step < training_config.num_step:
         running_loss = 0.0
         # Shuffle indices for the dataset.
         indices = np.random.permutation(len(sfm_dataset))
         for step, idx in enumerate(indices):
             need_density = False
-            need_split = False
             need_opacity_prune = False
             need_reset_opacity = False
             camera, image_path = sfm_dataset[idx]
